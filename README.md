@@ -1,5 +1,5 @@
 # Final Project for ADS503 
-## Contributors:
+## Contributors
    - Vivian Do
    - Dennis Myasnyankin
    - Bethany Wang 
