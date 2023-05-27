@@ -1,0 +1,77 @@
+---
+title: "ADS503 Diabetes"
+author: "Vivian Do"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r load data}
+setwd("~/Desktop/MSADS/ADS503 Applied Predictive Modeling/final project/ads503")
+data <- read.csv("diabetic_data.csv")
+head(data)
+```
+```{r}
+dim(data)
+```
+```{r}
+str(data)
+```
+```{r}
+#show missing values by column
+
+# Count the number of "?" values in each column
+null_counts <- colSums(data == "?", na.rm = TRUE)
+
+# Print the null counts
+(null_counts)
+```
+
+```{r}
+#print proportion of null counts
+prop.table(null_counts)
+```
+
+The following predictors contain a significant number of null values: 'weight' (98569, 51%), 'payer_code' (, 40256, 21%), medical_speciality (49949, 26%). 
+
+```{r}
+library(caret)
+library(psych)
+describe(data)
+```
+
+```{r}
+#show histograms for numeric data
+library(purrr)
+library(tidyr)
+library(ggplot2)
+
+data %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram()
+``` 
+
+```{r}
+#select only numeric variables
+data_numeric=data %>%
+  keep(is.numeric)
+
+#create correlation matrix for all numeric variables
+numeric_corr=cor(data_numeric)
+
+#visualize correlation matrix w/ corrplot
+library(corrplot)
+corrplot(numeric_corr)
+```
+
+```{r}
+# split predictors and response variable
+data_Y <- subset(data, select=c("time_in_hospital"))
+data_X <- subset(data, select=-c(time_in_hospital))
+```
+
+
+
+
