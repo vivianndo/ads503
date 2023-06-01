@@ -5,16 +5,21 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 
+**Load Data**
 ```{r load data}
 data <- read.csv("diabetic_data.csv")
 head(data)
 ```
 ```{r}
+# 101766 observations, 50 variables (49 predictors, 1 response)
 dim(data)
 ```
 ```{r}
+#various numeric and categorical variables (chr). will need to be converted to factors
 str(data)
 ```
+
+**Nulls**
 ```{r}
 #show missing values by column
 
@@ -32,6 +37,8 @@ prop.table(null_counts)
 
 The following predictors contain a significant number of null values: 'weight' (98569, 51%), 'payer_code' (, 40256, 21%), medical_speciality (49949, 26%). 
 
+
+**Distributions**
 ```{r}
 library(caret)
 library(psych)
@@ -52,6 +59,7 @@ data %>%
     geom_histogram()
 ``` 
 
+**Correlations**
 ```{r}
 #select only numeric variables
 data_numeric=data %>%
@@ -65,10 +73,21 @@ library(corrplot)
 corrplot(numeric_corr)
 ```
 
+**Degenerate Predictors**
+```{r}
+degenerateCols <- nearZeroVar(data)
+colnames(data[degenerateCols])
+```
+**Explore Response Variable**
+```{r}
+summary(data$time_in_hospital)
+hist(data$time_in_hospital)
+```
+
 ```{r}
 # split predictors and response variable
-data_Y <- subset(data, select=c("time_in_hospital"))
-data_X <- subset(data, select=-c(time_in_hospital))
+#data_Y <- subset(data, select=c("time_in_hospital"))
+#data_X <- subset(data, select=-c(time_in_hospital))
 ```
 
 
