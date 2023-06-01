@@ -15,7 +15,7 @@ head(data)
 
 #id mapping of admission type
 head(ids_map)
-table(ids_map$description)
+head(table(ids_map$description))
 ```
 ```{r}
 # 101766 observations, 50 variables (49 predictors, 1 response)
@@ -24,6 +24,13 @@ dim(data)
 ```{r}
 #various numeric and categorical variables (chr). will need to be converted to factors
 str(data)
+```
+```{r}
+#convert categorical variables into factors
+data[sapply(data, is.character)] <- lapply(data[sapply(data, is.character)], 
+                                       as.factor)
+
+## Need to fix diag_1, diag_2, diag_3 back into characters
 ```
 
 **Nulls**

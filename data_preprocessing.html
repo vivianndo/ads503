@@ -455,128 +455,14 @@ head(ids_map)</code></pre>
 ## 4                 4       Newborn
 ## 5                 5 Not Available
 ## 6                 6          NULL</code></pre>
-<pre class="r"><code>table(ids_map$description)</code></pre>
+<pre class="r"><code>head(table(ids_map$description))</code></pre>
 <pre><code>## 
-##                                                                                                           
-##                                                                                                         2 
-##                                                                                 Born inside this hospital 
-##                                                                                                         1 
-##                                                                                Born outside this hospital 
-##                                                                                                         1 
-##                                                                                     Court/Law Enforcement 
-##                                                                                                         1 
-##                                                                                            Emergency Room 
-##                                                                                                         1 
-##                                                                                          Extramural Birth 
-##                                                                                                         1 
-##                                                                                             Not Available 
-##                                                                                                         1 
-##                                                                                                Not Mapped 
-##                                                                                                         1 
-##                                                                                        Physician Referral 
-##                                                                                                         1 
-##                                                                                        Premature Delivery 
-##                                                                                                         1 
-##                                                                                                 Sick Baby 
-##                                                                                                         1 
-##                                                            Transfer from a Skilled Nursing Facility (SNF) 
-##                                                                                                         1 
-##                                                                   Transfer from Ambulatory Surgery Center 
-##                                                                                                         1 
-##                                                                Transfer from another health care facility 
-##                                                                                                         1 
-##                                                                  Transfer From Another Home Health Agency 
-##                                                                                                         1 
-##                                                                     Transfer from critial access hospital 
-##                                                                                                         1 
-##                                                 Transfer from hospital inpt/same fac reslt in a sep claim 
-##                                                                                                         1 
-##                                                                 Admitted as an inpatient to this hospital 
-##                                                                                                         1 
-##                                                                                           Clinic Referral 
-##                                                                                                         1 
-##                                                                                               description 
-##                                                                                                         2 
-##                                                                                        Discharged to home 
-##                                                                                                         1 
-##                                               Discharged/transferred to a Critical Access Hospital (CAH). 
-##                                                                                                         1 
-##                                                 Discharged/transferred to a federal health care facility. 
-##                                                                                                         1 
-##                                                      Discharged/transferred to a long term care hospital. 
-##                                                                                                         1 
-##   Discharged/transferred to a nursing facility certified under Medicaid but not certified under Medicare. 
-##                                                                                                         1 
-##                         Discharged/transferred to another rehab fac including rehab units of a hospital . 
-##                                                                                                         1 
-##                                                     Discharged/transferred to another short term hospital 
-##                                                                                                         1 
-##                   Discharged/transferred to another Type of Health Care Institution not Defined Elsewhere 
-##                                                                                                         1 
-##                                      Discharged/transferred to another type of inpatient care institution 
-##                                                                                                         1 
-##                                             Discharged/transferred to home under care of Home IV provider 
-##                                                                                                         1 
-##                                                   Discharged/transferred to home with home health service 
-##                                                                                                         1 
-##                                                                             Discharged/transferred to ICF 
-##                                                                                                         1 
-##                                                                             Discharged/transferred to SNF 
-##                                                                                                         1 
-##                             Discharged/transferred within this institution to Medicare approved swing bed 
-##                                                                                                         1 
-##                               Discharged/transferred/referred another institution for outpatient services 
-##                                                                                                         1 
-## Discharged/transferred/referred to a psychiatric hospital of psychiatric distinct part unit of a hospital 
-##                                                                                                         1 
-##                               Discharged/transferred/referred to this institution for outpatient services 
-##                                                                                                         1 
-##                                                                                                  Elective 
-##                                                                                                         1 
-##                                                                                                 Emergency 
-##                                                                                                         1 
-##                                                                                                   Expired 
-##                                                                                                         1 
-##                                                                  Expired at home. Medicaid only, hospice. 
-##                                                                                                         1 
-##                                                    Expired in a medical facility. Medicaid only, hospice. 
-##                                                                                                         1 
-##                                                           Expired, place unknown. Medicaid only, hospice. 
-##                                                                                                         1 
-##                                                                                              HMO Referral 
-##                                                                                                         1 
-##                                                                                            Hospice / home 
-##                                                                                                         1 
-##                                                                                Hospice / medical facility 
-##                                                                                                         1 
-##                                                                                                  Left AMA 
-##                                                                                                         1 
-##                                             Neonate discharged to another hospital for neonatal aftercare 
-##                                                                                                         1 
-##                                                                                                   Newborn 
-##                                                                                                         1 
-##                                                                                           Normal Delivery 
-##                                                                                                         1 
-##                                                                                             Not Available 
-##                                                                                                         2 
-##                                                                                                Not Mapped 
-##                                                                                                         2 
-##                                                                                                      NULL 
-##                                                                                                         3 
-##                                                                    Readmission to Same Home Health Agency 
-##                                                                                                         1 
-##                                               Still patient or expected to return for outpatient services 
-##                                                                                                         1 
-##                                                                                  Transfer from a hospital 
-##                                                                                                         1 
-##                                                                                     Transfer from Hospice 
-##                                                                                                         1 
-##                                                                                             Trauma Center 
-##                                                                                                         1 
-##                                                                                           Unknown/Invalid 
-##                                                                                                         2 
-##                                                                                                    Urgent 
-##                                                                                                         1</code></pre>
+##                               Born inside this hospital 
+##                           2                           1 
+##  Born outside this hospital       Court/Law Enforcement 
+##                           1                           1 
+##              Emergency Room            Extramural Birth 
+##                           1                           1</code></pre>
 <pre class="r"><code># 101766 observations, 50 variables (49 predictors, 1 response)
 dim(data)</code></pre>
 <pre><code>## [1] 101766     50</code></pre>
@@ -633,6 +519,11 @@ str(data)</code></pre>
 ##  $ change                  : chr  &quot;No&quot; &quot;Ch&quot; &quot;No&quot; &quot;Ch&quot; ...
 ##  $ diabetesMed             : chr  &quot;No&quot; &quot;Yes&quot; &quot;Yes&quot; &quot;Yes&quot; ...
 ##  $ readmitted              : chr  &quot;NO&quot; &quot;&gt;30&quot; &quot;NO&quot; &quot;NO&quot; ...</code></pre>
+<pre class="r"><code>#convert categorical variables into factors
+data[sapply(data, is.character)] &lt;- lapply(data[sapply(data, is.character)], 
+                                       as.factor)
+
+## Need to fix diag_1, diag_2, diag_3 back into characters</code></pre>
 <p><strong>Nulls</strong></p>
 <pre class="r"><code>#show missing values by column
 
