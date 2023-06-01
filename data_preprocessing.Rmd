@@ -10,7 +10,7 @@ output: html_document
 data <- read.csv("diabetic_data.csv")
 ids_map <- read.csv("IDs_mapping.csv")
 
-#diabetese data
+#diabetes data
 head(data)
 
 #id mapping of admission type
@@ -31,6 +31,21 @@ data[sapply(data, is.character)] <- lapply(data[sapply(data, is.character)],
                                        as.factor)
 
 ## Need to fix diag_1, diag_2, diag_3 back into characters
+```
+
+**Explore various predictors**
+```{r}
+#blood sugar (A1Cresult)
+table(data$A1Cresult)
+
+#if patient was prescribed diabetic medication
+table(data$diabetesMed)
+
+#if the patient was readmitted
+table(data$readmitted)
+
+#gender
+table(data$gender)
 ```
 
 **Nulls**
