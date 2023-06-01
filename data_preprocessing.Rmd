@@ -6,7 +6,6 @@ output: html_document
 ---
 
 ```{r load data}
-setwd("~/Desktop/MSADS/ADS503 Applied Predictive Modeling/final project/ads503")
 data <- read.csv("diabetic_data.csv")
 head(data)
 ```
