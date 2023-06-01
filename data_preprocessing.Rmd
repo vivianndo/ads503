@@ -8,7 +8,14 @@ output: html_document
 **Load Data**
 ```{r load data}
 data <- read.csv("diabetic_data.csv")
+ids_map <- read.csv("IDs_mapping.csv")
+
+#diabetese data
 head(data)
+
+#id mapping of admission type
+head(ids_map)
+table(ids_map$description)
 ```
 ```{r}
 # 101766 observations, 50 variables (49 predictors, 1 response)
@@ -82,6 +89,9 @@ colnames(data[degenerateCols])
 ```{r}
 summary(data$time_in_hospital)
 hist(data$time_in_hospital)
+```
+```{r}
+table(data$time_in_hospital)
 ```
 
 ```{r}
