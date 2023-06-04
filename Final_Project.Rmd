@@ -1,0 +1,253 @@
+---
+title: "The Diabetes Project"
+author: "Vivian Do, Bethany Wang, Dennis Myasnyankin"
+date: "2023-06-05"
+output: html_document
+Reference: https://www.hindawi.com/journals/bmri/2014/781670/
+---
+
+### 1. Exploratory Dada Analysis<br><br>
+
+#### <b>1.1 Import and check the Data</b><br><br>
+
+```{r}
+df <- read.csv(file = "diabetic_data.csv")
+dim(df)
+str(df)
+```
+* There are 101766 data records with 50 features
+
+#### <br><b>1.2 Classify features</b><br><br>
+
+* Subset numerical and categorical features
+```{r}
+#Separate numerical features into a new frame
+df_num <-subset(df, select = c(time_in_hospital, num_lab_procedures, num_procedures, num_medications, number_outpatient, number_emergency, number_inpatient, number_diagnoses))
+
+cat("These are the numerical features:\n", colnames(df_num))
+
+#Separate categorical features into a new frame
+df_cat <- subset(df, select = -c(time_in_hospital, num_lab_procedures, num_procedures, num_medications, number_outpatient, number_emergency, number_inpatient, number_diagnoses))
+
+cat("These are the categorical features:\n", colnames(df_cat))
+```
+
+#### <br><b>1.3 Check for missing values</b><br><br>
+
+```{r}
+# Check null values
+# sort(colSums(is.na(df)), decreasing=TRUE)
+sum(is.na(df))
+# Count the number of "?" values in each column
+null_counts <- sort(colSums(df == "?", na.rm = TRUE), decreasing=TRUE)
+
+# Print the null counts
+head((null_counts), 10)
+
+#print proportion of null counts
+head(prop.table(null_counts), 10)
+```
+* The following predictors contain a significant number of null values: 'weight' (98569, 51%), 'payer_code' (, 40256, 21%), medical_speciality (49949, 26%). 
+
+
+#### <br><b>1.4 Check degenerated features</b><br><br>
+
+```{r message=FALSE, warning=FALSE}
+
+library(caret)
+
+degenerateCols <- nearZeroVar(df)
+degenerateColNames <- colnames(df[degenerateCols])
+cat("There are the degenerated predictors:\n", degenerateColNames)
+```
+
+#### <br><b>1.5 Statistics of the numerical variables</b><br><br>
+
+```{r}
+summary(df_num)
+```
+
+#### <br><b>1.6 Correlations of the numerical variables</b><br><br>
+
+* Find Correlations of numerical features
+```{r message=FALSE, warning=FALSE}
+
+library(corrplot)
+correlations <- cor(df_num)
+correlations
+
+# Correlation plot
+corrplot(correlations, order = "hclust")
+```
+
+#### <br><b>1.7 Distribution of the numerical variables</b><br><br>
+
+```{r out.width="1000", out.height="1000", message=FALSE, warning=FALSE}
+library(Hmisc)
+hist.data.frame(df_num)
+```
+
+```{r out.width="1000", out.height="1000"}
+#pairs(df_num)
+```
+
+#### <br><b>1.8 Explore the relationship between the numerical predictors and the predicted variable</b><br><br>
+
+```{r out.width="1000", out.height="1000"}
+
+```
+
+#### <br><b>1.9 Distribution of the categorical variables</b><br><br>
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+n_distinct(df$encounter_id)
+n_distinct(df$patient_nbr)
+```
+
+* After printing the unique values, we see encounter_id and patient_nbr are just some identifiers, not useful features. We do not need to further explore them.
+
+```{r out.width="1200", out.height="1200"}
+par(mfrow = c(3,4))
+
+barplot(table(df$age), main="Distribution of Age", 
+        xlab="Age", ylab="Count", col="blue")
+
+barplot(table(df$race), main="Distribution of Race", 
+        xlab="Race", ylab="Count", col="orange")
+
+barplot(table(df$gender), main="Distribution of Gender", 
+        xlab="Gender", ylab="Count", col="lightblue")
+
+barplot(table(df$admission_type_id), main="Distribution of admission_type_id", 
+        xlab="admission_type_id", ylab="Count", col="blue")
+
+barplot(table(df$change), main="Distribution of change", 
+        xlab="Race", ylab="Count", col="orange")
+
+barplot(table(df$admission_source_id), main="Distribution of admission_source_id", 
+        xlab="admission_source_id", ylab="Count", col="lightblue")
+
+barplot(table(df$A1Cresult), main="Distribution of A1Cresult", 
+        xlab="A1Cresult", ylab="Count", col="green")
+
+barplot(table(df$diabetesMed), main="Distribution of diabetesMed", 
+        xlab="diabetesMed", ylab="Count", col="lightgreen")
+
+barplot(table(df$readmitted), main="Distribution of readmitted", 
+        xlab="readmitted", ylab="Count", col="purple")
+
+barplot(table(df$diag_1), main="Distribution of diag_1", 
+        xlab="diag_1", ylab="Count", col="orange")
+
+barplot(table(df$diag_2), main="Distribution of diag_2", 
+        xlab="diag_2", ylab="Count", col="lightblue")
+
+barplot(table(df$diag_3), main="Distribution of diag_3", 
+        xlab="diag_3", ylab="Count", col="green")
+```
+
+#### <br><b>1.10 Explore the relationship between the categorical predictors and the predicted variable</b><br><br>
+
+```{r out.width="1000", out.height="1000"}
+
+```
+
+### 2. Data Preprocessing
+
+#### <br><b>2.1 Filter out degenerated predictors</b><br><br>
+```{r message=FALSE, warning=FALSE}
+# Use nearZeroVar function from caret library to filter out low variance features
+df <- df[, -degenerateCols]
+dim(df)
+colnames(df)
+```
+
+#### <br><b>2.2 Remove useless features</b><br><br>
+
+```{r}
+df <- subset(df, select = -c(encounter_id, patient_nbr, payer_code))
+dim(df)
+#str(df)
+```
+
+#### <br><b>2.3 Handle missing values</b><br><br>
+
+```{r}
+
+```
+
+#### <br><b>2.4 Select features, Separate X and y</b><br><br>
+
+```{r}
+
+```
+
+
+#### <br><b>2.5 Factor the categorical variables</b><br><br>
+
+```{r}
+
+```
+
+#### <br><b>2.6 PCA Analysis</b><br><br>
+
+```{r}
+
+```
+
+
+#### <br><b>2.7 Partition data into training and test datasets</b><br><br>
+
+```{r}
+
+```
+
+
+#### <br><b>2.8 Trandform and standardize features: center and scale</b><br><br>
+
+```{r}
+
+```
+
+
+### 3. Modeling
+
+#### <br><b>3.1 </b><br><br>
+```{r}
+
+```
+
+#### <br><b>3.2 </b><br><br>
+```{r}
+
+```
+
+#### <br><b>3.3 </b><br><br>
+
+```{r}
+
+```
+
+#### <br><b>3.4 </b><br><br>
+
+```{r}
+
+```
+
+#### <br><b>3.5 </b><br><br>
+
+```{r}
+
+```
+
+#### <br><b>3.6 </b><br><br>
+
+```{r}
+
+```
+
+### 4. Conclusion
+```{r}
+
+```
