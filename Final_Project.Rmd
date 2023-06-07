@@ -21,12 +21,14 @@ str(df)
 ## Data Preprocessing ## 
 Convert categorical variables into factors
 ```{r}
-#Convert all 'char' variables into factors, except for diag_1, diag_2, and diag_3
+#Convert categorical variables into factors (according to Table 1 https://www.hindawi.com/journals/bmri/2014/781670/tab1/)
 df[sapply(df, is.character)] <- lapply(df[sapply(df, is.character)], 
                                        as.factor)
-df$diag_1 <- as.integer(df$diag_1)
-df$diag_2 <- as.integer(df$diag_2)
-df$diag_3 <- as.integer(df$diag_3)
+
+df$admission_type_id <- as.factor(df$admission_type_id)
+df$discharge_disposition_id <- as.factor(df$discharge_disposition_id)
+df$admission_source_id <- as.factor(df$admission_source_id)
+
 ```
 
 ## Define predictors and response variable ##
@@ -51,8 +53,11 @@ We will combine the categories '<30' and '>30' to account for all patient record
 ```{r}
 library(plyr)
 # Combine all readmissions
-revalue(df_response$readmitted, c("<30" = "Yes")) -> df_response$readmitted
-revalue(df_response$readmitted, c(">30" = "Yes")) -> df_response$readmitted
+revalue(df_response$readmitted, c("<30" = "YES")) -> df_response$readmitted
+revalue(df_response$readmitted, c(">30" = "YES")) -> df_response$readmitted
+
+revalue(df$readmitted, c("<30" = "YES")) -> df$readmitted
+revalue(df$readmitted, c(">30" = "YES")) -> df$readmitted
 
 # Show readmission counts using binary levels
 table(df_response)
@@ -130,7 +135,6 @@ summary(df_num)
 
 library(corrplot)
 correlations <- cor(df_num)
-correlations
 
 # Correlation plot
 corrplot(correlations, order = "hclust")
@@ -161,7 +165,9 @@ n_distinct(df$encounter_id)
 n_distinct(df$patient_nbr)
 ```
 
-* After printing the unique values, we see encounter_id and patient_nbr are just some identifiers, not useful features. We do not need to further explore them.
+* Out of 101766 encounters, there were 71518 (new) patients admitted while 30248 encounters were readmissions. 
+
+* After printing the unique values, we see encounter_id and patient_nbr are just some identifiers, not useful features. We do not need to further explore them. 
 
 ```{r out.width="1200", out.height="1200"}
 par(mfrow = c(3,4))
