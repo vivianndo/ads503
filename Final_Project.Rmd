@@ -90,9 +90,6 @@ colnames(df_cat)
 #cat("These are the categorical features:\n", colnames(df_cat))
 ```
 
-```{r}
-lapply(df_cat, table)
-```
 #### <br><b>1.3 Check for missing values</b><br><br>
 
 ```{r}
@@ -153,9 +150,27 @@ hist.data.frame(df_num)
 
 #### <br><b>1.8 Explore the relationship between the numerical predictors and the predicted variable</b><br><br>
 
-```{r out.width="1000", out.height="1000"}
+```{r}
+library(ggplot2)
+
+ggplot(df, aes(readmitted,time_in_hospital)) + geom_boxplot(fill = "blue") + labs(title = "Time in Hospital")
+ggplot(df, aes(readmitted,num_lab_procedures)) + geom_boxplot(fill = "blue") + labs(title = "Number of Lab Procedures")
+ggplot(df, aes(readmitted,num_procedures)) + geom_boxplot(fill = "blue") + labs(title = "Number of Procedures")
+ggplot(df, aes(readmitted,num_medications)) + geom_boxplot(fill = "blue") + labs(title = "Number of Medications")
+ggplot(df, aes(readmitted,number_outpatient)) + geom_boxplot(fill = "blue") + labs(title = "Number of Outpatient Visits")
+ggplot(df, aes(readmitted,number_emergency)) + geom_boxplot(fill = "blue") + labs(title = "Number of Emergency Visits")
+ggplot(df, aes(readmitted,number_inpatient)) + geom_boxplot(fill = "blue") + labs(title = "Number of Inpatient Visits")
+ggplot(df, aes(readmitted,number_diagnoses)) + geom_boxplot(fill = "blue") + labs(title = "Number of Diagnoses")
 
 ```
+
+Patients who are readmitted, in general
+
+* Spend more time in the hospital
+  
+* Have more inpatient visits in the year preceding the encounter
+  
+* Have more diagnoses entered to the system during their encounter. 
 
 #### <br><b>1.9 Distribution of the categorical variables</b><br><br>
 
