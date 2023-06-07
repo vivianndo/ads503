@@ -6,6 +6,23 @@ output: html_document
 Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 ---
 
+### Update Notes:
+#### 6-4 Bethany
+* Layout the project
+* Did initial version of EDA
+
+#### 6-6 Vivian 
+* Modified some initial steps of checking and classifying features
+* Added boxplots of numerical predictors and the target variable
+
+#### 6-7 Bethany
+* Summarized and analyzed the degenerated features
+* Completed histograms for all the other categorical features
+* Added another implementation of the boxplots in section 1.9
+* Did most of the data preprocessing
+* Not sure why the data imputing does not work?
+* Question/suggetion:  move the factoring the categorical variables to preprocessing section
+
 ### 1. Exploratory Data Analysis<br><br>
 
 #### <b>1.1 Import and check the Data</b><br><br>
@@ -97,7 +114,7 @@ colnames(df_cat)
 
 #Change '?' into NA for ease of analysis
 df[df=='?'] <- NA 
-
+summary(df)
 #Show null counts
 null_counts <- sort(colSums(is.na(df)), decreasing=TRUE)
 null_counts
@@ -117,7 +134,15 @@ library(caret)
 degenerateCols <- nearZeroVar(df)
 degenerateColNames <- colnames(df[degenerateCols])
 cat("There are the degenerated predictors:\n", degenerateColNames)
+
+#subset the degenerated predictors
+df_degenerated <- df[,degenerateColNames]
+colnames(df_degenerated)
+
+# Check the distribution of the degenerated predictors
+summary(df_degenerated)
 ```
+* By checking the distribution of the degenerated predictors, we confirmed that those predictors have values that show near-zero variance. They are not useful features and will be excluded from further analysis.
 
 #### <br><b>1.5 Statistics of the numerical variables</b><br><br>
 
@@ -172,6 +197,20 @@ Patients who are readmitted, in general
   
 * Have more diagnoses entered to the system during their encounter. 
 
+
+
+```{r out.width="1000", out.height="800"}
+par(mfrow = c(2,4))
+
+boxplot(df$time_in_hospital ~ df$readmitted, col="blue")
+boxplot(df$num_lab_procedures ~ df$readmitted, col="orange")
+boxplot(df$number_diagnoses ~ df$readmitted, col="yellow")
+
+boxplot(df$number_emergency ~ df$readmitted, col="cyan")
+boxplot(df$num_medications ~ df$readmitted, col="purple")
+boxplot(df$number_inpatient ~ df$readmitted, col="green")
+boxplot(df$number_outpatient ~ df$readmitted, col="lightblue")
+```
 #### <br><b>1.9 Distribution of the categorical variables</b><br><br>
 
 ```{r message=FALSE, warning=FALSE}
@@ -211,7 +250,7 @@ barplot(table(df$A1Cresult), main="Distribution of A1Cresult",
 barplot(table(df$diabetesMed), main="Distribution of diabetesMed", 
         xlab="diabetesMed", ylab="Count", col="lightgreen")
 
-barplot(table(df$readmitted), main="Distribution of readmitted", 
+barplot(table(df$weight), main="Distribution of readmitted", 
         xlab="readmitted", ylab="Count", col="purple")
 
 barplot(table(df$diag_1), main="Distribution of diag_1", 
@@ -224,9 +263,49 @@ barplot(table(df$diag_3), main="Distribution of diag_3",
         xlab="diag_3", ylab="Count", col="green")
 ```
 
+
+```{r out.width="1200", out.height="1200"}
+par(mfrow = c(3,4))
+
+barplot(table(df$payer_code), main="Distribution of payer_code", 
+        xlab="payer_code", ylab="Count", col="blue")
+
+barplot(table(df$medical_specialty), main="Distribution of medical_specialty", 
+        xlab="medical_specialty", ylab="Count", col="orange")
+
+barplot(table(df$A1Cresult), main="Distribution of A1Cresult", 
+        xlab="A1Cresult", ylab="Count", col="green")
+
+barplot(table(df$metformin), main="Distribution of metformin", 
+        xlab="metformin", ylab="Count", col="cyan")
+
+barplot(table(df$glipizide), main="Distribution of glipizide", 
+        xlab="glipizide", ylab="Count", col="blue")
+
+barplot(table(df$glyburide), main="Distribution of glyburide", 
+        xlab="glyburide", ylab="Count", col="orange")
+
+barplot(table(df$pioglitazone), main="Distribution of pioglitazone", 
+        xlab="pioglitazone", ylab="Count", col="green")
+
+barplot(table(df$rosiglitazone), main="Distribution of rosiglitazone", 
+        xlab="rosiglitazone", ylab="Count", col="cyan")
+
+barplot(table(df$insulin), main="Distribution of insulin", 
+        xlab="insulin", ylab="Count", col="blue")
+
+barplot(table(df$change), main="Distribution of change", 
+        xlab="change", ylab="Count", col="orange")
+
+barplot(table(df$diabetesMed), main="Distribution of diabetesMed", 
+        xlab="diabetesMed", ylab="Count", col="green")
+
+#barplot(table(df$medical_specialty), main="Distribution of Race", xlab="Race", ylab="Count", col="cyan")
+```
+
 #### <br><b>1.10 Explore the relationship between the categorical predictors and the predicted variable</b><br><br>
 
-```{r out.width="1000", out.height="1000"}
+```{r}
 
 ```
 
@@ -243,20 +322,53 @@ colnames(df)
 #### <br><b>2.2 Remove useless features</b><br><br>
 
 ```{r}
+
 df <- subset(df, select = -c(encounter_id, patient_nbr, payer_code))
 dim(df)
-#str(df)
 ```
 
-#### <br><b>2.3 Handle missing values</b><br><br>
+#### <br><b>2.3 Partition data into training and test datasets using a 70% ratio</b><br><br>
+
+```{r}
+# Separate X and Y
+dfX <- subset(df, select = -c(readmitted))
+dfY <- subset(df, select = c(readmitted))
+
+set.seed(100)
+
+# Partition the dataset
+trainRows <- createDataPartition(dfY$readmitted, p = .70, list = FALSE) 
+
+trainX <- dfX[trainRows,]
+testX <-  dfX[-trainRows,]
+
+trainY <- dfY[trainRows,]
+testY <- dfY[-trainRows,]
+
+dim(trainX)
+dim(testX)
+```
+
+#### <br><b>2.4 Handle missing values</b><br><br>
 
 ```{r}
 
-```
+train_null_counts <- sort(colSums(is.na(trainX)), decreasing=TRUE)
+head(train_null_counts, 10)
 
-#### <br><b>2.4 Select features, Separate X and y</b><br><br>
+# Impute the missing values in the training set
+trainimp <- preProcess(trainX, method=c("medianImpute"))
+trainX1 <- predict(trainimp, trainX)
 
-```{r}
+train_null_counts <- sort(colSums(is.na(trainX1)), decreasing=TRUE)
+head(train_null_counts, 10)
+
+# Impute the missing values in the training set
+testimp <- preProcess(testX, method=c("medianImpute"))
+testX1 <- predict(testimp, testX)
+
+test_null_counts <- sort(colSums(is.na(testX1)), decreasing=TRUE)
+head(test_null_counts, 10)
 
 ```
 
@@ -267,21 +379,21 @@ dim(df)
 
 ```
 
-#### <br><b>2.6 PCA Analysis</b><br><br>
+
+#### <br><b>2.6 Trandform and standardize features: center and scale</b><br><br>
 
 ```{r}
+# center and scale the training set
+trainimp <- preProcess(trainX, method=c("center", "scale"))
+trainX <- predict(trainimp, trainX)
 
+
+# center and scale the test set
+testimp <- preProcess(testX, method=c("center", "scale"))
+testX <- predict(testimp, testX)
 ```
 
-
-#### <br><b>2.7 Partition data into training and test datasets</b><br><br>
-
-```{r}
-
-```
-
-
-#### <br><b>2.8 Trandform and standardize features: center and scale</b><br><br>
+#### <br><b>2.7 PCA Analysis</b><br><br>
 
 ```{r}
 
