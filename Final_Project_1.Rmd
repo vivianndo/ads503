@@ -23,6 +23,11 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 * Not sure why the data imputing does not work?
 * Question/suggetion:  move the factoring the categorical variables to preprocessing section
 
+#### 6-8 Bethany
+
+* Cleaned up and reorganized EDA
+* Minor fixes in data preprocessing
+
 ### 1. Exploratory Data Analysis<br><br>
 
 #### <b>1.1 Import and check the Data</b><br><br>
@@ -55,74 +60,66 @@ df$admission_source_id <- as.factor(df$admission_source_id)
 
 #### <br><b>1.3 Classify features</b><br><br>
 
+
 * Subset numerical and categorical features
 
 ```{r message=FALSE, warning=FALSE}
 # Subset numerical and categorical features into new data frames
 library(dplyr)
-df_num <- df_pred %>%  select_if(is.integer)
-df_cat <- df_pred %>% select_if(is.factor)
+df_num <- df %>%  select_if(is.integer)
+df_num <- subset(df_num, select = -c(encounter_id, patient_nbr))
+
+df_cat <- df %>% select_if(is.factor)
 
 # Show numerical variables
-cat("These are the numerical features:\n", colnames(df_num), "\n")
+cat("These are the numerical features:\n", colnames(df_num), "\n\n")
 
 # Show categorical variables
-cat("These are the categorical features:\n", colnames(df_cat), "\n")
+cat("These are the categorical features:\n", colnames(df_cat), "\n\n")
+```
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+n_distinct(df$encounter_id)
+n_distinct(df$patient_nbr)
 ```
 
-```{r}
-#Separate numerical features into a new frame
-#df_num <-subset(df, select = c(time_in_hospital, num_lab_procedures, num_procedures, num_medications, number_outpatient, #number_emergency, number_inpatient, number_diagnoses))
+* Out of 101766 encounters, there were 71518 (new) patients admitted while 30248 encounters were readmissions. 
+* After printing the unique values, we see encounter_id and patient_nbr are just some identifiers, not useful features. We do not need to further explore them. 
 
-#cat("These are the numerical features:\n", colnames(df_num))
+#### <br><b>1.4 Explore and revalue the response variable</b><br><br>
 
-#Separate categorical features into a new frame
-#df_cat <- subset(df, select = -c(time_in_hospital, num_lab_procedures, num_procedures, num_medications, number_outpatient, number_emergency, number_inpatient, number_diagnoses))
+* We use "readmitted" as our response variable 
 
-#cat("These are the categorical features:\n", colnames(df_cat))
-```
-
-
-## Define predictors and response variable ##
-```{r}
-# Define the response variable as 'readmitted'
-df_response <- subset(df, select=c(readmitted))
-
-# All other variables are predictors
-df_pred <- subset(df, select=-c(readmitted))
-```
-
-## Explore response variable ##
 ```{r}
 # Show readmission counts
-table(df_response)
+table(df$readmitted)
 ```
 
-11357 patient records were readmitted within 30 days, 35535 patient records were readmitted after 30 days, and 54863 patient records were not readmitted.
+* 11357 patient records were readmitted within 30 days, 35535 patient records were readmitted after 30 days, and 54863 patient records were not readmitted.
 
-We will combine the categories '<30' and '>30' to account for all patient records who were readmitted.Thus, our response variable will be binary: Yes for patients who were readmitted, and No if the patient was not readmitted. 
+* We will combine the categories '<30' and '>30' to account for all patient records who were readmitted.Thus, our response variable will be binary: Yes for patients who were readmitted, and No if the patient was not readmitted. 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(plyr)
 # Combine all readmissions
-revalue(df_response$readmitted, c("<30" = "YES")) -> df_response$readmitted
-revalue(df_response$readmitted, c(">30" = "YES")) -> df_response$readmitted
-
 revalue(df$readmitted, c("<30" = "YES")) -> df$readmitted
 revalue(df$readmitted, c(">30" = "YES")) -> df$readmitted
 
 # Show readmission counts using binary levels
-table(df_response)
-```
+table(df$readmitted)
 
-#### <br><b>1.3 Check for missing values</b><br><br>
+```
+* After revalue response "<30" and ">30" to "YES", there are 46902 instances of "YES" and 54864 instances of "NO"
+
+#### <br><b>1.5 Check for missing values</b><br><br>
 
 ```{r}
 # Check null values
 
 #Change '?' into NA for ease of analysis
 df[df=='?'] <- NA 
-summary(df)
+#summary(df)
+
 #Show null counts
 null_counts <- sort(colSums(is.na(df)), decreasing=TRUE)
 null_counts
@@ -130,37 +127,20 @@ null_counts
 #Show proportion of null counts
 head(prop.table(null_counts), 10)
 ```
+
 * The following predictors contain a significant number of null values: 'weight' (98569, 52%), medical_specialty (49949, 26%), 'payer_code' ( 40256, 21%), and 'race' (2273, 1%). 
 
 
-#### <br><b>1.4 Check degenerated features</b><br><br>
-
-```{r message=FALSE, warning=FALSE}
-
-library(caret)
-
-degenerateCols <- nearZeroVar(df)
-degenerateColNames <- colnames(df[degenerateCols])
-cat("There are the degenerated predictors:\n", degenerateColNames)
-
-#subset the degenerated predictors
-df_degenerated <- df[,degenerateColNames]
-colnames(df_degenerated)
-
-# Check the distribution of the degenerated predictors
-summary(df_degenerated)
-```
-* By checking the distribution of the degenerated predictors, we confirmed that those predictors have values that show near-zero variance. They are not useful features and will be excluded from further analysis.
-
-#### <br><b>1.5 Statistics of the numerical variables</b><br><br>
+#### <br><b>1.6 Statistics of the numerical variables</b><br><br>
 
 ```{r}
 summary(df_num)
 ```
 
-#### <br><b>1.6 Correlations of the numerical variables</b><br><br>
+#### <br><b>1.7 Correlations of the numerical variables</b><br><br>
 
 * Find Correlations of numerical features
+
 ```{r message=FALSE, warning=FALSE}
 
 library(corrplot)
@@ -170,7 +150,7 @@ correlations <- cor(df_num)
 corrplot(correlations, order = "hclust")
 ```
 
-#### <br><b>1.7 Distribution of the numerical variables</b><br><br>
+#### <br><b>1.8 Distribution of the numerical variables</b><br><br>
 
 ```{r out.width="1000", out.height="1000", message=FALSE, warning=FALSE}
 library(Hmisc)
@@ -181,55 +161,30 @@ hist.data.frame(df_num)
 #pairs(df_num)
 ```
 
-#### <br><b>1.8 Explore the relationship between the numerical predictors and the predicted variable</b><br><br>
 
-```{r}
-library(ggplot2)
-
-ggplot(df, aes(readmitted,time_in_hospital)) + geom_boxplot(fill = "blue") + labs(title = "Time in Hospital")
-ggplot(df, aes(readmitted,num_lab_procedures)) + geom_boxplot(fill = "blue") + labs(title = "Number of Lab Procedures")
-ggplot(df, aes(readmitted,num_procedures)) + geom_boxplot(fill = "blue") + labs(title = "Number of Procedures")
-ggplot(df, aes(readmitted,num_medications)) + geom_boxplot(fill = "blue") + labs(title = "Number of Medications")
-ggplot(df, aes(readmitted,number_outpatient)) + geom_boxplot(fill = "blue") + labs(title = "Number of Outpatient Visits")
-ggplot(df, aes(readmitted,number_emergency)) + geom_boxplot(fill = "blue") + labs(title = "Number of Emergency Visits")
-ggplot(df, aes(readmitted,number_inpatient)) + geom_boxplot(fill = "blue") + labs(title = "Number of Inpatient Visits")
-ggplot(df, aes(readmitted,number_diagnoses)) + geom_boxplot(fill = "blue") + labs(title = "Number of Diagnoses")
-
-```
-
-Patients who are readmitted, in general
-
-* Spend more time in the hospital
-  
-* Have more inpatient visits in the year preceding the encounter
-  
-* Have more diagnoses entered to the system during their encounter. 
-
-
-
-```{r out.width="1000", out.height="800"}
-par(mfrow = c(2,4))
-
-boxplot(df$time_in_hospital ~ df$readmitted, col="blue")
-boxplot(df$num_lab_procedures ~ df$readmitted, col="orange")
-boxplot(df$number_diagnoses ~ df$readmitted, col="yellow")
-
-boxplot(df$number_emergency ~ df$readmitted, col="cyan")
-boxplot(df$num_medications ~ df$readmitted, col="purple")
-boxplot(df$number_inpatient ~ df$readmitted, col="green")
-boxplot(df$number_outpatient ~ df$readmitted, col="lightblue")
-```
-#### <br><b>1.9 Distribution of the categorical variables</b><br><br>
+#### <br><b>1.9 Check degenerated features</b><br><br>
 
 ```{r message=FALSE, warning=FALSE}
-library(dplyr)
-n_distinct(df$encounter_id)
-n_distinct(df$patient_nbr)
+
+library(caret)
+
+degenerateCols <- nearZeroVar(df)
+degenerateColNames <- colnames(df[degenerateCols])
+degenerateColNum <- length(degenerateColNames)
+
+cat("These are ", degenerateColNum, " degenerated predictors:\n", degenerateColNames)
+
+#subset the degenerated predictors
+df_degenerated <- df[,degenerateColNames]
+colnames(df_degenerated)
+
+# Check the distribution of the degenerated predictors
+summary(df_degenerated)
 ```
 
-* Out of 101766 encounters, there were 71518 (new) patients admitted while 30248 encounters were readmissions. 
+* These are 19 degenerated predictors that show near-zero variance.
 
-* After printing the unique values, we see encounter_id and patient_nbr are just some identifiers, not useful features. We do not need to further explore them. 
+#### <br><b>1.10 Distribution of the categorical variables</b><br><br>
 
 ```{r out.width="1200", out.height="1200"}
 par(mfrow = c(3,4))
@@ -311,7 +266,32 @@ barplot(table(df$diabetesMed), main="Distribution of diabetesMed",
 #barplot(table(df$medical_specialty), main="Distribution of Race", xlab="Race", ylab="Count", col="cyan")
 ```
 
-#### <br><b>1.10 Explore the relationship between the categorical predictors and the predicted variable</b><br><br>
+
+#### <br><b>1.11 Explore the relationship between the numerical predictors and the predicted variable</b><br><br>
+
+```{r out.width="1000", out.height="800"}
+par(mfrow = c(2,4))
+
+boxplot(df$time_in_hospital ~ df$readmitted, col="blue")
+boxplot(df$num_lab_procedures ~ df$readmitted, col="orange")
+boxplot(df$number_diagnoses ~ df$readmitted, col="yellow")
+
+boxplot(df$number_emergency ~ df$readmitted, col="cyan")
+boxplot(df$num_medications ~ df$readmitted, col="purple")
+boxplot(df$number_inpatient ~ df$readmitted, col="green")
+boxplot(df$number_outpatient ~ df$readmitted, col="lightblue")
+```
+
+
+Patients who are readmitted, in general
+
+* Spend more time in the hospital
+  
+* Have more inpatient visits in the year preceding the encounter
+  
+* Have more diagnoses entered to the system during their encounter. 
+
+#### <br><b>1.12 Explore the relationship between the categorical predictors and the predicted variable</b><br><br>
 
 ```{r}
 
@@ -331,7 +311,7 @@ colnames(df)
 
 ```{r}
 
-df <- subset(df, select = -c(encounter_id, patient_nbr, payer_code))
+df <- subset(df, select = -c(encounter_id, patient_nbr))
 dim(df)
 ```
 
@@ -365,43 +345,32 @@ train_null_counts <- sort(colSums(is.na(trainX)), decreasing=TRUE)
 head(train_null_counts, 10)
 
 # Impute the missing values in the training set
-trainimp <- preProcess(trainX, method=c("medianImpute"))
-trainX1 <- predict(trainimp, trainX)
+train_impute <- preProcess(trainX, method=c("knnImpute"))
+trainX <- predict(train_impute, trainX)
 
-train_null_counts <- sort(colSums(is.na(trainX1)), decreasing=TRUE)
+train_null_counts <- sort(colSums(is.na(trainX)), decreasing=TRUE)
 head(train_null_counts, 10)
 
-# Impute the missing values in the training set
-testimp <- preProcess(testX, method=c("medianImpute"))
-testX1 <- predict(testimp, testX)
+# Impute the missing values in the test set
+testX <- predict(train_impute, testX)
 
-test_null_counts <- sort(colSums(is.na(testX1)), decreasing=TRUE)
+test_null_counts <- sort(colSums(is.na(testX)), decreasing=TRUE)
 head(test_null_counts, 10)
 
 ```
 
-
-#### <br><b>2.5 Factor the categorical variables</b><br><br>
-
-```{r}
-
-```
-
-
-#### <br><b>2.6 Trandform and standardize features: center and scale</b><br><br>
+#### <br><b>2.5 Trandform and standardize features: center and scale</b><br><br>
 
 ```{r}
 # center and scale the training set
-trainimp <- preProcess(trainX, method=c("center", "scale"))
-trainX <- predict(trainimp, trainX)
-
+train_tran <- preProcess(trainX, method=c("center", "scale"))
+trainX <- predict(train_tran, trainX)
 
 # center and scale the test set
-testimp <- preProcess(testX, method=c("center", "scale"))
-testX <- predict(testimp, testX)
+testX <- predict(train_tran, testX)
 ```
 
-#### <br><b>2.7 PCA Analysis</b><br><br>
+#### <br><b>2.6 PCA Analysis</b><br><br>
 
 ```{r}
 
