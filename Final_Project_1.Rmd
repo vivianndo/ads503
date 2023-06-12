@@ -13,6 +13,8 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 
 #### 6-6 Vivian 
 * Modified some initial steps of checking and classifying features
+* Define response variable and convert to binary levels
+* Separate numerical and categorical variables
 * Added boxplots of numerical predictors and the target variable
 
 #### 6-7 Bethany
@@ -24,9 +26,12 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 * Question/suggetion:  move the factoring the categorical variables to preprocessing section
 
 #### 6-8 Bethany
-
 * Cleaned up and reorganized EDA
 * Minor fixes in data preprocessing
+
+### 6-12 Vivian
+* Create frequeny counts, proportions for each categorical variable vs. response
+* Create barcharts w/ proportions for all categorical variables + observed findings.
 
 ### 1. Exploratory Data Analysis<br><br>
 
@@ -118,6 +123,7 @@ table(df$readmitted)
 
 #Change '?' into NA for ease of analysis
 df[df=='?'] <- NA 
+
 #summary(df)
 
 #Show null counts
@@ -282,7 +288,6 @@ boxplot(df$number_inpatient ~ df$readmitted, col="green")
 boxplot(df$number_outpatient ~ df$readmitted, col="lightblue")
 ```
 
-
 Patients who are readmitted, in general
 
 * Spend more time in the hospital
@@ -294,8 +299,90 @@ Patients who are readmitted, in general
 #### <br><b>1.12 Explore the relationship between the categorical predictors and the predicted variable</b><br><br>
 
 ```{r}
+# Frequency counts
+ct_race <- table(df$readmitted, df$race)
+ct_gender <- table(df$readmitted, df$gender)
+ct_age <- table(df$readmitted, df$age)
+ct_weight <- table(df$readmitted, df$weight)
+ct_admissionType <- table(df$readmitted, df$admission_type_id)
+ct_dischargeID <- table(df$readmitted, df$discharge_disposition_id)
+ct_admissionSource <- table(df$readmitted, df$admission_source_id)
+ct_payerCode <- table(df$readmitted, df$payer_code)
+ct_medSpec <- table(df$readmitted, df$medical_specialty)
+ct_A1C <- table(df$readmitted, df$A1Cresult)
+ct_metf <- table(df$readmitted, df$metformin)
+ct_glipz <- table(df$readmitted, df$glipizide)
+ct_glyb <- table(df$readmitted, df$glyburide)
+ct_piog <- table(df$readmitted, df$pioglitazone)
+ct_rosig <- table(df$readmitted, df$rosiglitazone)
+ct_insulin <- table(df$readmitted, df$insulin)
+ct_change <- table(df$readmitted, df$change)
+ct_diabMeds <- table(df$readmitted, df$diabetesMed)
 
+# Create contingency tables showing proportions 
+ct_race1 <- prop.table(table(df$readmitted, df$race),2)
+ct_gender1 <- prop.table(table(df$readmitted, df$gender),2)
+ct_age1 <- prop.table(table(df$readmitted, df$age),2)
+ct_weight1 <- prop.table(table(df$readmitted, df$weight),2)
+ct_admissionType1 <- prop.table(table(df$readmitted, df$admission_type_id),2)
+ct_dischargeID1 <- prop.table(table(df$readmitted, df$discharge_disposition_id),2)
+ct_admissionSource1 <- prop.table(table(df$readmitted, df$admission_source_id),2)
+ct_payerCode1 <- prop.table(table(df$readmitted, df$payer_code),2)
+ct_medSpec1 <- prop.table(table(df$readmitted, df$medical_specialty),2)
+ct_A1C1 <- prop.table(table(df$readmitted, df$A1Cresult),2)
+ct_metf1 <- prop.table(table(df$readmitted, df$metformin),2)
+ct_glipz1 <- prop.table(table(df$readmitted, df$glipizide),2)
+ct_glyb1 <- prop.table(table(df$readmitted, df$glyburide),2)
+ct_piog1 <- prop.table(table(df$readmitted, df$pioglitazone),2)
+ct_rosig1 <- prop.table(table(df$readmitted, df$rosiglitazone),2)
+ct_insulin1 <- prop.table(table(df$readmitted, df$insulin),2)
+ct_change1 <- prop.table(table(df$readmitted, df$change),2)
+ct_diabMeds1 <- prop.table(table(df$readmitted, df$diabetesMed),2)
+
+## Create barplots ##
+# Patient Demographics (Legend removed for individual graphs where bars would be blocked)
+par(mfrow=c(3,2))
+barplot(ct_age1,main="Age Group",xlab="Age Group",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_race1,main="Race",xlab="Race",ylab="Readmitted",col=c("blue", "orange"),las=2)
+barplot(ct_gender1,main="Gender",xlab="Gender",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_gender1))
+barplot(ct_payerCode1,main="Payer Code",xlab="Payer Code",ylab="Readmitted",col=c("blue", "orange"),las=2)
+barplot(ct_weight1,main="Weight",xlab="Weight (lbs)",ylab="Readmitted",col=c("blue", "orange"),las=2)
+barplot(ct_dischargeID1,main="Discharge ID",xlab="Discharge ID",ylab="Readmitted",col=c("blue", "orange"))
 ```
+
+* Race: Asians were disproportionately less likely to be readmitted. 
+* Weight: Patients weighing 0-25 or >200 lbs were disproportionately more likely to be readmitted.
+* Discharge ID: Discharge IDs 11, 19, and 20 were disproportionately less likely to be readmitted. Patients with discharge IDs 10,12,15 were disproportionately more likely to be readmitted. 
+
+```{r}
+# General encounter information
+par(mfrow=c(3,2))
+barplot(ct_admissionSource1,main="Admission Source",xlab="Admission Source",ylab="Readmitted",col=c("blue", "orange"),las=2)
+barplot(ct_admissionType1,main="Admission Type",xlab="Admission Type",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_A1C,main="A1C Result",xlab="A1C Result",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_A1C))
+barplot(ct_change1,main="Medications Change",xlab="Medications Change",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_diabMeds1,main="Diabetes Medication",xlab="Diabetes Medication",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_medSpec1,main="Medical Specialty",xlab="Medical Specialty",ylab="Readmitted",col=c("blue", "orange"),las=2)
+```
+
+* Admission Source: Admission sources 11, 13, 14, 25 less likely to be readmitted. 
+* Admission Type: Admission type 7 less likely to be readmitted. 
+* Medical Specialty: Patients admitted by certain medical specialities were less likely to be readmitted, such as Speech, Psychiatry, and Neurology. 
+
+```{r}
+# All medications
+par(mfrow=c(3,2))
+barplot(ct_glipz1,main="Glipizide ",xlab="Glipizide",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_glyb1,main="Glyburide",xlab="Glyburide",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_glyb1))
+barplot(ct_metf1,main="Metformin",xlab="Metformin",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_metf1))
+barplot(ct_insulin1,main="Insulin",xlab="Insulin",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_piog1,main="Pioglitazone",xlab="Pioglitazone",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_rosig1,main="Rosiglitazone",xlab="Rosiglitazone",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_rosig1))
+```
+
+* Patients who were prescribed a decreased dosage of rosiglitazone were less likely to be readmitted. 
+* Besides this, no other significant differences for the change in/prescription of drugs were observed. 
+
 
 ### 2. Data Preprocessing
 
@@ -314,6 +401,8 @@ colnames(df)
 df <- subset(df, select = -c(encounter_id, patient_nbr))
 dim(df)
 ```
+
+* There are 30 variables remaining after removal of degenerated variables observational IDs (encounter_id and patient_nbr). 
 
 #### <br><b>2.3 Partition data into training and test datasets using a 70% ratio</b><br><br>
 
@@ -340,7 +429,6 @@ dim(testX)
 #### <br><b>2.4 Handle missing values</b><br><br>
 
 ```{r}
-
 train_null_counts <- sort(colSums(is.na(trainX)), decreasing=TRUE)
 head(train_null_counts, 10)
 
