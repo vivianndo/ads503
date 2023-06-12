@@ -33,6 +33,7 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 * Create frequeny counts, proportions for each categorical variable vs. response
 * Create barcharts w/ proportions for all categorical variables + observed findings.
 * Fix data import to replace all "?" string with NA
+* Notes: knnimputation doesn't work b/c categorical variables have not been converted to dummies. Commented out code to center/scale training data as this is already done w/ knn imputation.  
 
 ### 1. Exploratory Data Analysis<br><br>
 
@@ -122,12 +123,6 @@ table(df$readmitted)
 
 ```{r}
 # Check null values
-
-#Change '?' into NA for ease of analysis
-df[df=='?'] <- NA 
-
-#summary(df)
-
 #Show null counts
 null_counts <- sort(colSums(is.na(df)), decreasing=TRUE)
 null_counts
@@ -431,38 +426,39 @@ dim(testX)
 #### <br><b>2.4 Handle missing values</b><br><br>
 
 ```{r}
-install.packages("RANN")
-library(RANN)
 train_null_counts <- sort(colSums(is.na(trainX)), decreasing=TRUE)
 head(train_null_counts, 10)
 
 # Impute the missing values in the training set
 library(caret)
-train_impute <- preProcess(trainX, method=c("knnImpute"))
-trainX <- predict(train_impute, trainX)
-sum(is.na(trainX))
+#train_impute <- preProcess(trainX, "knnImpute")
+#trainX <- predict(train_impute, trainX)
+#summary(trainX)
 
 
 train_null_counts <- sort(colSums(is.na(trainX)), decreasing=TRUE)
 head(train_null_counts, 10)
 
 # Impute the missing values in the test set
-testX <- predict(train_impute, testX)
+#testX <- predict(train_impute, testX)
 
-test_null_counts <- sort(colSums(is.na(testX)), decreasing=TRUE)
-head(test_null_counts, 10)
+#test_null_counts <- sort(colSums(is.na(testX)), decreasing=TRUE)
+#head(test_null_counts, 10)
 
 ```
 
 #### <br><b>2.5 Trandform and standardize features: center and scale</b><br><br>
 
 ```{r}
-# center and scale the training set
-train_tran <- preProcess(trainX, method=c("center", "scale"))
-trainX <- predict(train_tran, trainX)
+#Note: knnimputation automatically centers and scales the data, so this code would be unnecessary. Commenting it out for now
+
+
+# center and scale the training set 
+#train_tran <- preProcess(trainX, method=c("center", "scale"))
+#trainX <- predict(train_tran, trainX)
 
 # center and scale the test set
-testX <- predict(train_tran, testX)
+#testX <- predict(train_tran, testX)
 ```
 
 #### <br><b>2.6 PCA Analysis</b><br><br>
