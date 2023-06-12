@@ -32,13 +32,15 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 ### 6-12 Vivian
 * Create frequeny counts, proportions for each categorical variable vs. response
 * Create barcharts w/ proportions for all categorical variables + observed findings.
+* Fix data import to replace all "?" string with NA
 
 ### 1. Exploratory Data Analysis<br><br>
 
 #### <b>1.1 Import and check the Data</b><br><br>
 
 ```{r}
-df <- read.csv(file = "diabetic_data.csv")
+#Read in data, replace "?" with NA values 
+df <- read.csv(file = "diabetic_data.csv", na.strings=c("?"))
 dim(df)
 str(df)
 ```
@@ -402,7 +404,7 @@ df <- subset(df, select = -c(encounter_id, patient_nbr))
 dim(df)
 ```
 
-* There are 30 variables remaining after removal of degenerated variables observational IDs (encounter_id and patient_nbr). 
+* There are 30 variables (29 predictors, 1 response variable) remaining after removal of degenerated variables and observational IDs (encounter_id and patient_nbr). 
 
 #### <br><b>2.3 Partition data into training and test datasets using a 70% ratio</b><br><br>
 
@@ -429,12 +431,17 @@ dim(testX)
 #### <br><b>2.4 Handle missing values</b><br><br>
 
 ```{r}
+install.packages("RANN")
+library(RANN)
 train_null_counts <- sort(colSums(is.na(trainX)), decreasing=TRUE)
 head(train_null_counts, 10)
 
 # Impute the missing values in the training set
+library(caret)
 train_impute <- preProcess(trainX, method=c("knnImpute"))
 trainX <- predict(train_impute, trainX)
+sum(is.na(trainX))
+
 
 train_null_counts <- sort(colSums(is.na(trainX)), decreasing=TRUE)
 head(train_null_counts, 10)
