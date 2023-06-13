@@ -36,6 +36,8 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 * Perform feature deletions (see reasonings below)
 * Convert categorical variables into dummies. Create new dataframe w/ dummies called 'df_dummies'
 * Perform centering/scaling
+* Add Logistic regression, LDA, Penalized LogReg, and NSC models
+* Create confusion matrix, plot ROC curves, compare AUC
 
 ### 1. Exploratory Data Analysis<br><br>
 
@@ -468,7 +470,63 @@ testX <- predict(train_tran, testX)
 
 #### <br><b>3.1 </b><br><br>
 ```{r}
+## Set up ##
+# Turn off warnings
+options(warn=-1)
 
+# Define train control
+ctrl <- trainControl(method="cv",summaryFunction = twoClassSummary, classProbs=TRUE, savePredictions="final")
+set.seed(123)
+
+# Logistic Regression 
+set.seed(123)
+lrFit <- train(x=trainX,y=trainY,method="glm",metric="ROC", trControl=ctrl)
+
+# Linear Discriminant Analysis
+set.seed(123)
+ldaFit <- train(x=trainX,y=trainY,method="lda",metric="ROC",trControl=ctrl)
+
+# Penalized Logistic Regression
+set.seed(123)
+glmnGrid <- expand.grid(alpha=c(0,0.1,0.2,0.4,0.6,0.8,1),
+                        lambda=seq(.01, .2, length=10))
+glmnFit <- train(x=trainX,y=trainY,method="glmnet",tuneGrid=glmnGrid, metric="ROC", trControl=ctrl)
+
+# Nearest Shrunken Centroids
+set.seed(123)
+nscFit <- train(x=trainX,y=trainY,method="pam",preProcess=c("center", "scale"),tuneGrid=data.frame(threshold=seq(0,25, length=30)),metric="ROC",trControl=ctrl)
+
+## Compare model performance ##
+# Create a data frame to store all test results 
+testResults<- data.frame(obs=trainY,
+                          LR=predict(lrFit,trainX),
+                          LDA=predict(ldaFit,trainX),
+                          PenalizedLR=predict(glmnFit,trainX),
+                          NSC=predict(nscFit,trainX))
+# Confusion matrix
+lrFitCM <- confusionMatrix(lrFit, norm="none")
+glmnetCM <- confusionMatrix(glmnFit, norm="none")
+ldaFitCM <- confusionMatrix(ldaFit, norm="none")
+nscFitCM <- confusionMatrix(nscFit, norm="none")
+
+#ROC Curve
+library(pROC)
+lrROC <- roc(response=trainY,predictor=lrFit$pred$YES,levels=rev(levels(lrFit$pred$obs)))
+glmnROC <- roc(response=trainY,predictor=glmnFit$pred$YES,levels=rev(levels(glmnFit$pred$obs)))
+ldaROC <- roc(response=trainY,predictor=ldaFit$pred$YES,levels=rev(levels(ldaFit$pred$obs)))
+nscROC <- roc(response=trainY,predictor=nscFit$pred$YES,levels=rev(levels(nscFit$pred$obs)))
+plot(lrROC, type="s", col='red', legacy.axes=TRUE)
+plot(glmnROC, type="s", add=TRUE, col='green', legacy.axes=TRUE)
+plot(ldaROC, type="s", add=TRUE, col='blue',legacy.axes=TRUE)
+plot(nscROC, type="s", add=TRUE, col='black', legacy.axes=TRUE)
+legend("bottomright", legend=c("LR", "GLMNET","LDA", "NSC"), col=c("red","green", "blue", "black"), lwd=2)
+title(main="Compare ROC Curves")
+
+# Area under the ROC
+auc(lrROC)
+auc(glmnROC)
+auc(ldaROC)
+auc(nscROC)
 ```
 
 #### <br><b>3.2 </b><br><br>
