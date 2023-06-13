@@ -1,6 +1,6 @@
 ---
 title: "The Diabetes Project"
-author: "Vivian Do, Bethany Wang, Dennis Myasnyankin"
+author: "Vivian Do, Bethany Wang"
 date: "2023-06-05"
 output: html_document
 Reference: https://www.hindawi.com/journals/bmri/2014/781670/
@@ -33,7 +33,9 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 * Create frequeny counts, proportions for each categorical variable vs. response
 * Create barcharts w/ proportions for all categorical variables + observed findings.
 * Fix data import to replace all "?" string with NA
-* Notes: knnimputation doesn't work b/c categorical variables have not been converted to dummies. Commented out code to center/scale training data as this is already done w/ knn imputation.  
+* Perform feature deletions (see reasonings below)
+* Convert categorical variables into dummies. Create new dataframe w/ dummies called 'df_dummies'
+* Perform centering/scaling
 
 ### 1. Exploratory Data Analysis<br><br>
 
@@ -391,22 +393,41 @@ dim(df)
 colnames(df)
 ```
 
-#### <br><b>2.2 Remove useless features</b><br><br>
+#### <br><b>2.2 Remove features</b><br><br>
 
 ```{r}
-
-df <- subset(df, select = -c(encounter_id, patient_nbr))
+df <- subset(df, select = -c(encounter_id, patient_nbr,weight,medical_specialty,payer_code,diag_1,diag_2,diag_3,race))
 dim(df)
+sum(is.na(df))
 ```
 
-* There are 30 variables (29 predictors, 1 response variable) remaining after removal of degenerated variables and observational IDs (encounter_id and patient_nbr). 
+Feature deletions were performed on the following variables for the following reasons:
+* encounter_id and patient_nbr are random and do not contain relevant information
+* weight, medical_specialty, and payer_code contain large portion of missing values
+* proportion of readmission is equal across all races
+* diag_1, diag_2, and diag_3 each contain over 700 levels and are not conducive to modeling
+
+After feature deletion, there 23 variables remaining--22 predictors and 1 response variable.
+
+**Convert categorical variables to dummy variables**
+
+Categorical variables will now be converted into n-1 dummy variables. In a new dataframe 'df_dummies', we will add the dummy variables and remove the original columns.
+```{r}
+install.packages("fastDummies")
+library(fastDummies)
+df_dummies <- dummy_cols(df, 
+           select_columns=c("gender","age","admission_type_id","discharge_disposition_id", "admission_source_id", "A1Cresult", "metformin", "glipizide", "glyburide","pioglitazone", "rosiglitazone", "insulin", "change","diabetesMed"),
+           remove_first_dummy=TRUE,
+           remove_selected_columns=TRUE)
+```
+
 
 #### <br><b>2.3 Partition data into training and test datasets using a 70% ratio</b><br><br>
 
 ```{r}
 # Separate X and Y
-dfX <- subset(df, select = -c(readmitted))
-dfY <- subset(df, select = c(readmitted))
+dfX <- subset(df_dummies, select = -c(readmitted))
+dfY <- subset(df_dummies, select = c(readmitted))
 
 set.seed(100)
 
@@ -425,40 +446,15 @@ dim(testX)
 
 #### <br><b>2.4 Handle missing values</b><br><br>
 
-```{r}
-train_null_counts <- sort(colSums(is.na(trainX)), decreasing=TRUE)
-head(train_null_counts, 10)
-
-# Impute the missing values in the training set
-library(caret)
-#train_impute <- preProcess(trainX, "knnImpute")
-#trainX <- predict(train_impute, trainX)
-#summary(trainX)
-
-
-train_null_counts <- sort(colSums(is.na(trainX)), decreasing=TRUE)
-head(train_null_counts, 10)
-
-# Impute the missing values in the test set
-#testX <- predict(train_impute, testX)
-
-#test_null_counts <- sort(colSums(is.na(testX)), decreasing=TRUE)
-#head(test_null_counts, 10)
-
-```
-
 #### <br><b>2.5 Trandform and standardize features: center and scale</b><br><br>
 
 ```{r}
-#Note: knnimputation automatically centers and scales the data, so this code would be unnecessary. Commenting it out for now
-
-
 # center and scale the training set 
-#train_tran <- preProcess(trainX, method=c("center", "scale"))
-#trainX <- predict(train_tran, trainX)
+train_tran <- preProcess(trainX, method=c("center", "scale"))
+trainX <- predict(train_tran, trainX)
 
 # center and scale the test set
-#testX <- predict(train_tran, testX)
+testX <- predict(train_tran, testX)
 ```
 
 #### <br><b>2.6 PCA Analysis</b><br><br>
