@@ -29,7 +29,7 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 * Cleaned up and reorganized EDA
 * Minor fixes in data preprocessing
 
-### 6-12 Vivian
+#### 6-12 Vivian
 * Create frequeny counts, proportions for each categorical variable vs. response
 * Create barcharts w/ proportions for all categorical variables + observed findings.
 * Fix data import to replace all "?" string with NA
@@ -38,6 +38,18 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 * Perform centering/scaling
 * Add Logistic regression, LDA, Penalized LogReg, and NSC models
 * Create confusion matrix, plot ROC curves, compare AUC
+
+#### 6-13 Bethany
+* Reorganized EDA
+* Organized and cleaned up data preprocessing
+* Deleted more low variance/skewed predictors
+* Added step 2.4 "remove outliers"
+* Added step 2.9 "PCA Analysis"
+* Added functions to calculate a model's performance metrics
+* Completed the linear classification models: LR, LDA, GLMN, NSC
+* Added one nonlinear classification models: MDA
+* Completed the models evaluation section
+
 
 ### 1. Exploratory Data Analysis<br><br>
 
@@ -69,9 +81,7 @@ df$admission_source_id <- as.factor(df$admission_source_id)
 
 * All categorical variables have been concerted into factors
 
-
 #### <br><b>1.3 Classify features</b><br><br>
-
 
 * Subset numerical and categorical features
 
@@ -129,7 +139,7 @@ table(df$readmitted)
 # Check null values
 #Show null counts
 null_counts <- sort(colSums(is.na(df)), decreasing=TRUE)
-null_counts
+head(null_counts, 10)
 
 #Show proportion of null counts
 head(prop.table(null_counts), 10)
@@ -137,14 +147,38 @@ head(prop.table(null_counts), 10)
 
 * The following predictors contain a significant number of null values: 'weight' (98569, 52%), medical_specialty (49949, 26%), 'payer_code' ( 40256, 21%), and 'race' (2273, 1%). 
 
+#### <br><b>1.6 Check degenerated features</b><br><br>
 
-#### <br><b>1.6 Statistics of the numerical variables</b><br><br>
+```{r message=FALSE, warning=FALSE}
+
+library(caret)
+
+degenerateCols <- nearZeroVar(df)
+length(degenerateCols)
+
+degenerateColNames <- colnames(df[degenerateCols])
+degenerateColNum <- length(degenerateColNames)
+
+cat("These are ", degenerateColNum, " degenerated predictors:\n", degenerateColNames)
+
+#subset the degenerated predictors
+df_degenerated <- df[,degenerateColNames]
+
+colnames(df_degenerated)
+
+# Check the distribution of the degenerated predictors
+summary(df_degenerated)
+```
+
+* There are 18 degenerated predictors that show near-zero variance.
+
+#### <br><b>1.7 Statistics of the numerical variables</b><br><br>
 
 ```{r}
 summary(df_num)
 ```
 
-#### <br><b>1.7 Correlations of the numerical variables</b><br><br>
+#### <br><b>1.8 Correlations of the numerical variables</b><br><br>
 
 * Find Correlations of numerical features
 
@@ -157,41 +191,37 @@ correlations <- cor(df_num)
 corrplot(correlations, order = "hclust")
 ```
 
-#### <br><b>1.8 Distribution of the numerical variables</b><br><br>
+#### <br><b>1.9 Distribution of the numerical variables</b><br><br>
 
 ```{r out.width="1000", out.height="1000", message=FALSE, warning=FALSE}
 library(Hmisc)
 hist.data.frame(df_num)
 ```
 
-```{r out.width="1000", out.height="1000"}
-#pairs(df_num)
+#### <br><b>1.10 Explore the relationship between the numerical predictors and the predicted variable</b><br><br>
+
+```{r out.width="1000", out.height="800"}
+par(mfrow = c(2,4))
+
+boxplot(df$time_in_hospital ~ df$readmitted, col="blue")
+boxplot(df$num_lab_procedures ~ df$readmitted, col="orange")
+boxplot(df$number_diagnoses ~ df$readmitted, col="yellow")
+
+boxplot(df$number_emergency ~ df$readmitted, col="cyan")
+boxplot(df$num_medications ~ df$readmitted, col="purple")
+boxplot(df$number_inpatient ~ df$readmitted, col="green")
+boxplot(df$number_outpatient ~ df$readmitted, col="lightblue")
 ```
 
+Patients who are readmitted, in general
 
-#### <br><b>1.9 Check degenerated features</b><br><br>
+* Spend more time in the hospital
+  
+* Have more inpatient visits in the year preceding the encounter
+  
+* Have more diagnoses entered to the system during their encounter. 
 
-```{r message=FALSE, warning=FALSE}
-
-library(caret)
-
-degenerateCols <- nearZeroVar(df)
-degenerateColNames <- colnames(df[degenerateCols])
-degenerateColNum <- length(degenerateColNames)
-
-cat("These are ", degenerateColNum, " degenerated predictors:\n", degenerateColNames)
-
-#subset the degenerated predictors
-df_degenerated <- df[,degenerateColNames]
-colnames(df_degenerated)
-
-# Check the distribution of the degenerated predictors
-summary(df_degenerated)
-```
-
-* These are 19 degenerated predictors that show near-zero variance.
-
-#### <br><b>1.10 Distribution of the categorical variables</b><br><br>
+#### <br><b>1.11 Distribution of the categorical variables</b><br><br>
 
 ```{r out.width="1200", out.height="1200"}
 par(mfrow = c(3,4))
@@ -273,30 +303,6 @@ barplot(table(df$diabetesMed), main="Distribution of diabetesMed",
 #barplot(table(df$medical_specialty), main="Distribution of Race", xlab="Race", ylab="Count", col="cyan")
 ```
 
-
-#### <br><b>1.11 Explore the relationship between the numerical predictors and the predicted variable</b><br><br>
-
-```{r out.width="1000", out.height="800"}
-par(mfrow = c(2,4))
-
-boxplot(df$time_in_hospital ~ df$readmitted, col="blue")
-boxplot(df$num_lab_procedures ~ df$readmitted, col="orange")
-boxplot(df$number_diagnoses ~ df$readmitted, col="yellow")
-
-boxplot(df$number_emergency ~ df$readmitted, col="cyan")
-boxplot(df$num_medications ~ df$readmitted, col="purple")
-boxplot(df$number_inpatient ~ df$readmitted, col="green")
-boxplot(df$number_outpatient ~ df$readmitted, col="lightblue")
-```
-
-Patients who are readmitted, in general
-
-* Spend more time in the hospital
-  
-* Have more inpatient visits in the year preceding the encounter
-  
-* Have more diagnoses entered to the system during their encounter. 
-
 #### <br><b>1.12 Explore the relationship between the categorical predictors and the predicted variable</b><br><br>
 
 ```{r}
@@ -339,7 +345,9 @@ ct_rosig1 <- prop.table(table(df$readmitted, df$rosiglitazone),2)
 ct_insulin1 <- prop.table(table(df$readmitted, df$insulin),2)
 ct_change1 <- prop.table(table(df$readmitted, df$change),2)
 ct_diabMeds1 <- prop.table(table(df$readmitted, df$diabetesMed),2)
+```
 
+```{r}
 ## Create barplots ##
 # Patient Demographics (Legend removed for individual graphs where bars would be blocked)
 par(mfrow=c(3,2))
@@ -389,48 +397,144 @@ barplot(ct_rosig1,main="Rosiglitazone",xlab="Rosiglitazone",ylab="Readmitted",co
 
 #### <br><b>2.1 Filter out degenerated predictors</b><br><br>
 ```{r message=FALSE, warning=FALSE}
-# Use nearZeroVar function from caret library to filter out low variance features
-df <- df[, -degenerateCols]
-dim(df)
-colnames(df)
+# Use nearZeroVar function to filter out low variance features
+df_pr <- df[, -degenerateCols]
+dim(df_pr)
+colnames(df_pr)
 ```
 
-#### <br><b>2.2 Remove features</b><br><br>
+* 18 degenerated predictors that show near-zero variance have been removed. 32 columns are left in the dataset.
 
-```{r}
-df <- subset(df, select = -c(encounter_id, patient_nbr,weight,medical_specialty,payer_code,diag_1,diag_2,diag_3,race))
-dim(df)
-sum(is.na(df))
-```
+#### <br><b>2.2 Delete other useless features</b><br><br>
 
-Feature deletions were performed on the following variables for the following reasons:
+Feature removal were performed on the following variables for the following reasons:
+
 * encounter_id and patient_nbr are random and do not contain relevant information
-* weight, medical_specialty, and payer_code contain large portion of missing values
+
 * proportion of readmission is equal across all races
+
 * diag_1, diag_2, and diag_3 each contain over 700 levels and are not conducive to modeling
 
-After feature deletion, there 23 variables remaining--22 predictors and 1 response variable.
+* number_emergency, number_outpatient, number_inpatient, A1Cresult, glyburide, pioglitazone, pioglitazone, rosiglitazone, glipizide are removed because values show low variance and are extremely skewed.
 
-**Convert categorical variables to dummy variables**
-
-Categorical variables will now be converted into n-1 dummy variables. In a new dataframe 'df_dummies', we will add the dummy variables and remove the original columns.
 ```{r}
-install.packages("fastDummies")
-library(fastDummies)
-df_dummies <- dummy_cols(df, 
-           select_columns=c("gender","age","admission_type_id","discharge_disposition_id", "admission_source_id", "A1Cresult", "metformin", "glipizide", "glyburide","pioglitazone", "rosiglitazone", "insulin", "change","diabetesMed"),
-           remove_first_dummy=TRUE,
-           remove_selected_columns=TRUE)
+# df_pr <- subset(df_pr, select = -c(encounter_id, patient_nbr,weight,medical_specialty,payer_code,diag_1,diag_2,diag_3,race))
+
+df_pr <- subset(df_pr, select = -c(encounter_id, patient_nbr, diag_1, diag_2,diag_3, race, number_emergency, number_outpatient, number_inpatient, A1Cresult, glyburide, pioglitazone, pioglitazone, rosiglitazone, glipizide))
+
+dim(df_pr)
 ```
 
+* After this step, 18 columns are left in the data frame.
 
-#### <br><b>2.3 Partition data into training and test datasets using a 70% ratio</b><br><br>
+#### <br><b>2.3 Handle missing values</b><br><br>
+
+* weight, medical_specialty, and payer_code contain large portion of missing values
 
 ```{r}
-# Separate X and Y
-dfX <- subset(df_dummies, select = -c(readmitted))
-dfY <- subset(df_dummies, select = c(readmitted))
+# Check null values
+#Show null counts
+null_counts <- sort(colSums(is.na(df_pr)), decreasing=TRUE)
+head(null_counts, 5)
 
+#Show proportion of null counts
+head(prop.table(null_counts), 5)
+
+df_pr <- subset(df_pr, select = -c(weight,medical_specialty, payer_code))
+
+dim(df_pr)
+sum(is.na(df_pr))
+colnames(df_pr)
+
+```
+
+* After this step, 15 columns are left in the data frame.
+
+#### <br><b>2.4 Remove outliers</b><br><br>
+
+```{r}
+# Remove outlier from column 'num_lab_procedures'
+quartiles <- quantile(df_pr$num_lab_procedures, probs=c(.25, .75), na.rm = FALSE)
+IQR <- IQR(df_pr$num_lab_procedures)
+Lower <- quartiles[1] - 1.5*IQR
+Upper <- quartiles[2] + 1.5*IQR 
+
+count_before <-dim(df_pr)[1]
+df_pr <- subset(df_pr, df_pr$num_lab_procedures > Lower & df_pr$num_lab_procedures < Upper)
+count_after <-dim(df_pr)[1]
+cat(count_before-count_after, " outliers in num_lab_procedures have been removed. \n")
+
+
+# Remove outlier from column 'number_diagnoses'
+quartiles <- quantile(df_pr$number_diagnoses, probs=c(.25, .75), na.rm = FALSE)
+IQR <- IQR(df_pr$number_diagnoses)
+Lower <- quartiles[1] - 1.5*IQR
+Upper <- quartiles[2] + 1.5*IQR
+
+count_before <-dim(df_pr)[1]
+df_pr <- subset(df_pr, df_pr$number_diagnoses > Lower & df_pr$number_diagnoses < Upper)
+count_after <-dim(df_pr)[1]
+cat(count_before-count_after, " outliers in number_diagnoses have been removed. \n")
+
+
+# Remove outliers from column 'num_medications'
+quartiles <- quantile(df_pr$num_medications, probs=c(.25, .75), na.rm = FALSE)
+IQR <- IQR(df_pr$num_medications)
+Lower <- quartiles[1] - 2*IQR
+Upper <- quartiles[2] + 2*IQR 
+
+count_before <-dim(df_pr)[1]
+df_pr <- subset(df_pr, df_pr$num_medications > Lower & df_pr$num_medications < Upper)
+count_after <-dim(df_pr)[1]
+cat(count_before-count_after, " outliers in num_medications have been removed. \n")
+
+
+# Remove outlier from column 'number_inpatient'
+# quartiles <- quantile(df_pr$num_lab_procedures, probs=c(.25, .75), na.rm = FALSE)
+# IQR <- IQR(df_pr$num_lab_procedures)
+# Lower <- quartiles[1] - 2*IQR
+# Upper <- quartiles[2] + 2*IQR 
+# count(df_pr$num_lab_procedures > Lower & df_pr$num_lab_procedures < Upper)
+# 
+# df_pr <- subset(df_pr, df_pr$num_lab_procedures > Lower & df_pr$num_lab_procedures < Upper)
+# dim(df_pr)
+
+```
+
+#### <br><b>2.5 Separate X and Y</b><br><br>
+
+* readmitted is the predicted variable. It will be separated from the predictors.
+
+```{r}
+#Separate X and Y using readmitted as predicted variable
+dfX <- subset(df_pr, select = -c(readmitted))
+dfY <- subset(df_pr, select = c(readmitted))
+
+```
+
+#### <br><b>2.6 Convert categorical variables to dummy variables</b><br><br>
+
+* Categorical variables will now be converted into n-1 dummy variables. In a new dataframe 'df_dummies', we will add the dummy variables and remove the original columns.
+
+```{r message=FALSE, warning=FALSE}
+library(fastDummies)
+
+# dfX <- dummy_cols(dfX, 
+#            select_columns=c("gender","age","admission_type_id","discharge_disposition_id", "A1Cresult","admission_source_id", "metformin", "glipizide", "glyburide","pioglitazone", "rosiglitazone", "insulin", "change","diabetesMed"),
+#            remove_first_dummy=TRUE, remove_selected_columns=TRUE)
+
+dfX <- dummy_cols(dfX, 
+           select_columns=c("gender","age","admission_type_id","discharge_disposition_id","metformin", "insulin", "change","diabetesMed", "admission_source_id"),
+           remove_first_dummy=TRUE, remove_selected_columns=TRUE)
+
+dim(dfX)
+```
+
+* 99797 objects with 72 variables will be used for modeling.
+
+#### <br><b>2.7 Partition data into training and test datasets using a 70% ratio</b><br><br>
+
+```{r}
 set.seed(100)
 
 # Partition the dataset
@@ -444,11 +548,13 @@ testY <- dfY[-trainRows,]
 
 dim(trainX)
 dim(testX)
+
 ```
 
-#### <br><b>2.4 Handle missing values</b><br><br>
+* After the partition, there are 69858 instances in the training set and 29939 instances in the test set.
 
-#### <br><b>2.5 Trandform and standardize features: center and scale</b><br><br>
+
+#### <br><b>2.8 Trandform and standardize features: center and scale</b><br><br>
 
 ```{r}
 # center and scale the training set 
@@ -459,106 +565,357 @@ trainX <- predict(train_tran, trainX)
 testX <- predict(train_tran, testX)
 ```
 
-#### <br><b>2.6 PCA Analysis</b><br><br>
+#### <br><b>2.9 PCA Analysis</b><br><br>
+
+* This is a high-dimensional dataset, we want to see if PCA can be applied to reduce feature dimension.
+
+```{r}
+# Find the PCA from the training set
+pca <- prcomp(trainX)
+pca_var <- pca$sdev^2
+
+# Find the percentage of each PCA component
+pca_percents <- pca_var / sum(pca_var)
+cat("Percentage of the first 15 PCAs: ", pca_percents[1:15], "\n")
+
+# The total percentage of the first 50 PCAs
+cat("The total percentage of the first 50 PCAs: ", sum(pca_percents[1:50]), "\n")
+```
+
+* We see there are no dominant PCA components. The first 50 components represent 82% of the features. Therefore, PCA won't help reduce features in this application.
+
+### 3. Modeling
+
+#### <br><b>3.0 Define  functions</b><br><br>
+
+First we will define a function to calculate the metrics of a trained model
+
+* The function will take one parameters: a trained model
+* The function will calculate these metrics including accuracy, sensitivity, specificity, precision
+* It will return a vector containing those metrics
+
+```{r}
+# Define a function to calculate the metrics of a trained model
+get_training_metrics <- function(model) {
+  
+  # Total number of training objects
+  total <- dim(trainX)[1]
+    
+ # Construct model's confusion matrix
+  cm <- confusionMatrix(model, norm = "none")
+
+  # Calculate accuracy
+  accuracy <- round((cm$table[1,1] + cm$table[2,2]) / total, 3)
+  
+  # Calculate sensitivity
+  sensitivity <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[2,1]), 3)
+  
+  # Calculate Specificity
+  specificity <- round(cm$table[2,2] / (cm$table[2,2] + cm$table[1,2]), 3) 
+  
+  # Calculate Precision
+  precision <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[1,2]), 3) 
+  
+  # Return a vector of metrics
+  c(accuracy, sensitivity, specificity, precision)
+}
+
+```
+
+Next we will define a function to calculate the metrics of prediction result on test dataset
+
+* The function will take one parameters: predicted results of the test set
+* The function will calculate these metrics including ROC, accuracy, sensitivity, specificity, precision
+* It will return a vector containing those metrics
+
+```{r}
+# Define a function to calculate the metrics of a trained model
+get_test_metrics <- function(test_results) {
+  total <- dim(testX)[1]
+  
+  # Construct prediction's confusion matrix  
+  cm <- confusionMatrix(test_results, testY, positive = "YES")
+
+  # Calculate accuracy
+  accuracy <- round((cm$table[1,1] + cm$table[2,2]) / total, 3)
+  
+  # Calculate sensitivity
+  sensitivity <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[2,1]), 3)
+  
+  # Calculate Specificity
+  specificity <- round(cm$table[2,2] / (cm$table[2,2] + cm$table[1,2]), 3) 
+  
+  # Calculate Precision
+  precision <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[1,2]), 3) 
+  
+  # Return a vector of metrics
+  c(accuracy, sensitivity, specificity, precision)
+}
+
+```
+
+
+#### <br><b>3.1 Logistic Regression Model</b><br><br>
+
+```{r warning=FALSE, out.width="400", out.height="350"}
+
+# Define train control
+ctrl <- trainControl(method = "cv", summaryFunction = twoClassSummary, 
+                     classProbs = TRUE, savePredictions = "final")
+
+# Logistic Regression 
+set.seed(123)
+lrFit <- train(x = trainX, y = trainY,
+               method = "glm", metric = "ROC", trControl = ctrl)
+
+# Calculate training/resampling performance metrics
+metrics_tr <- data.frame(Metric.Train = c("Accuracy", "Sensitivity", "Specificity", "Precision")) 
+
+metrics_tr$LR <- get_training_metrics(lrFit)
+#metrics_tr
+
+# Predict on test data
+lrTestResults <- predict(lrFit, testX)
+
+# Calculate test performance metrics
+metrics_test <- data.frame(Metric.Test = c("Accuracy", "Sensitivity", "Specificity", "Precision")) 
+metrics_test$LR <- get_test_metrics(lrTestResults)
+
+# Display model performance
+#metrics_test
+cat("LR (training): accuracy =", metrics_tr$LR[1], ", sensitivity =", metrics_tr$LR[2], 
+    " , specificity =", metrics_tr$LR[3], ", Precision =", metrics_tr$LR[4], "\n")
+
+cat("LR (test): accuracy =", metrics_test$LR[1], " , sensitivity =", metrics_test$LR[2], 
+    ", specificity =", metrics_test$LR[3], ", Precision =", metrics_tr$LR[4], "\n")
+
+# Importance of the predictors
+lrImp <- varImp(lrFit, scale = FALSE)
+plot(lrImp, top = 15)
+
+```
+
+
+#### <br><b>3.2  Linear Discriminant Analysis</b><br><br>
+
+```{r message=FALSE, warning=FALSE, out.width="400", out.height="350"}
+# Linear Discriminant Analysis
+set.seed(123)
+ldaFit <- train(x = trainX,y = trainY,
+                method = "lda", metric = "ROC", trControl=ctrl)
+#ldaFit
+# Calculate training/resampling performance metrics
+metrics_tr$LDA <- get_training_metrics(ldaFit)
+#metrics_tr
+
+# Predict on test data
+ldaTestResults <- predict(ldaFit, testX)
+
+# Calculate test performance metrics
+metrics_test$LDA <- get_test_metrics(ldaTestResults)
+
+# Display model performance
+cat("LDA (training): accuracy =", metrics_tr$LDA[1], ", sensitivity =", metrics_tr$LDA[2], 
+    " , specificity =", metrics_tr$LDA[3], ", Precision =", metrics_tr$LDA[4], "\n")
+
+cat("LDA (test): accuracy =", metrics_test$LDA[1], " , sensitivity =", metrics_test$LDA[2], 
+    ", specificity =", metrics_test$LDA[3], ", Precision =", metrics_tr$LDA[4], "\n")
+
+# Importance of the predictors
+ldaImp <- varImp(ldaFit, scale = FALSE)
+plot(ldaImp, top = 15)
+```
+
+#### <br><b>3.3 Penalized Logistic Regression Model</b><br><br>
+
+```{r out.width="400", out.height="350"}
+# Penalized Logistic Regression
+set.seed(123)
+glmnGrid <- expand.grid(alpha=c(0,0.1,0.2,0.4),
+                        lambda=seq(.01, .1, length=5))
+glmnFit <- train(x = trainX, y = trainY, 
+                 method="glmnet", tuneGrid=glmnGrid, 
+                 metric="ROC", trControl=ctrl)
+#glmnFit
+# Plot the tuning results
+plot(glmnFit)
+
+# Calculate training/resampling performance metrics
+metrics_tr$GLMN <- get_training_metrics(glmnFit)
+#metrics_tr
+
+# Predict on test data
+glmnTestResults <- predict(glmnFit, testX)
+
+# Calculate test performance metrics
+metrics_test$GLMN <- get_test_metrics(glmnTestResults)
+
+# Display model performance
+cat("Penalized LR (training): accuracy =", metrics_tr$GLMN[1], ", sensitivity =", metrics_tr$GLMN[2], 
+    " , specificity =", metrics_tr$GLMN[3], ", Precision =", metrics_tr$GLMN[4], "\n")
+
+cat("Penalized LR (test): accuracy =", metrics_test$GLMN[1], " , sensitivity =", metrics_test$GLMN[2], 
+    ", specificity =", metrics_test$GLMN[3], ", Precision =", metrics_tr$GLMN[4], "\n")
+
+# Importance of the predictors
+glmnImp <- varImp(glmnFit, scale = FALSE)
+plot(glmnImp, top = 15)
+
+```
+
+#### <br><b>3.4 Nearest Shrunken Centroids Model</b><br><br>
+
+```{r out.width="400", out.height="350"}
+
+# Nearest Shrunken Centroids
+set.seed(123)
+nscFit <- train(x=trainX,y=trainY,
+                method="pam", tuneGrid=data.frame(threshold=seq(0,15, length=20)),
+                metric="ROC", trControl=ctrl)
+#nscFit
+
+# Plot the tuning result
+plot(nscFit)
+
+# Calculate training/resampling performance metrics
+metrics_tr$NSC <- get_training_metrics(nscFit)
+
+# Predict on test data
+nscTestResults <- predict(nscFit, testX)
+
+# Calculate test performance metrics
+metrics_test$NSC <- get_test_metrics(nscTestResults)
+
+# Display model performance
+cat("NSC (training): accuracy =", metrics_tr$NSC[1], ", sensitivity =", metrics_tr$NSC[2], 
+    " , specificity =", metrics_tr$NSC[3], ", Precision =", metrics_tr$NSC[4], "\n")
+
+cat("NSC (test): accuracy =", metrics_test$NSC[1], " , sensitivity =", metrics_test$NSC[2], 
+    ", specificity =", metrics_test$NSC[3], ", Precision =", metrics_tr$NSC[4], "\n")
+
+# Importance of the predictors
+nscImp <- varImp(nscFit, scale = FALSE)
+plot(nscImp, top = 15)
+```
+
+
+#### <br><b>3.5 Mixture Discriminant Analysis</b><br><br>
+
+```{r message=FALSE, warning=FALSE, out.width="400", out.height="350"}
+set.seed(123)
+
+mdaFit <- train(x = trainX, y = trainY,
+               method = "mda", tuneGrid = expand.grid(subclasses=2:4),
+               metric = "ROC", trControl = ctrl)
+
+# Plot the tuning results
+plot(mdaFit)
+
+# Calculate training/resampling performance metrics
+metrics_tr$MDA <- get_training_metrics(mdaFit)
+#metrics_tr
+
+# Predict on test data
+mdaTestResults <- predict(mdaFit, testX)
+
+# Calculate test performance metrics
+metrics_test$MDA <- get_test_metrics(mdaTestResults)
+
+# Display model performance
+cat("MDA (training): accuracy =", metrics_tr$MDA[1], ", sensitivity =", metrics_tr$MDA[2], 
+    " , specificity =", metrics_tr$MDA[3], ", Precision =", metrics_tr$MDA[4], "\n")
+
+cat("MDA (test): accuracy =", metrics_test$MDA[1], " , sensitivity =", metrics_test$MDA[2], 
+    ", specificity =", metrics_test$MDA[3], ", Precision =", metrics_tr$MDA[4], "\n")
+
+# Importance of the predictors
+mdaImp <- varImp(mdaFit, scale = FALSE)
+plot(mdaImp, top = 15)
+
+```
+
+
+#### <br><b>3.6 Support Vector Machines</b><br><br>
+
+* Tried, but had to stop running. It is too slow!
+
+```{r}
+# sigmaEst <- kernlab::sigest(as.matrix(trainX))
+# svmgrid <- expand.grid(sigma = sigmaEst, C = 2^seq(-2,+2))
+# 
+# set.seed(123)
+# svmRFit <- train(x = trainX, y = trainY,
+#                 method = "svmRadial", tuneGrid = svmgrid,
+#                 metric = "ROC", trControl = ctrl)
+# svmRFit
+```
+
+
+#### <br><b>3.7 </b><br><br>
 
 ```{r}
 
 ```
 
+### 4. Model Evaluation and Conclusion
 
-### 3. Modeling
+#### <br><b>4.1 Baseline Model </b><br><br>
 
-#### <br><b>3.1 </b><br><br>
 ```{r}
-## Set up ##
-# Turn off warnings
-options(warn=-1)
 
-# Define train control
-ctrl <- trainControl(method="cv",summaryFunction = twoClassSummary, classProbs=TRUE, savePredictions="final")
-set.seed(123)
+round(table(trainY) / length(trainY), 3)
 
-# Logistic Regression 
-set.seed(123)
-lrFit <- train(x=trainX,y=trainY,method="glm",metric="ROC", trControl=ctrl)
+```
 
-# Linear Discriminant Analysis
-set.seed(123)
-ldaFit <- train(x=trainX,y=trainY,method="lda",metric="ROC",trControl=ctrl)
+* For this data analysis, a model's ability to predict the positive (readmitted-Yes) accurately is the
+most important metric. Therefore, we choose All Positive Model as the base model. From the above table, we see that when we assign all predictions as positive, the accuracy of this base model is 0.463.
 
-# Penalized Logistic Regression
-set.seed(123)
-glmnGrid <- expand.grid(alpha=c(0,0.1,0.2,0.4,0.6,0.8,1),
-                        lambda=seq(.01, .2, length=10))
-glmnFit <- train(x=trainX,y=trainY,method="glmnet",tuneGrid=glmnGrid, metric="ROC", trControl=ctrl)
 
-# Nearest Shrunken Centroids
-set.seed(123)
-nscFit <- train(x=trainX,y=trainY,method="pam",preProcess=c("center", "scale"),tuneGrid=data.frame(threshold=seq(0,25, length=30)),metric="ROC",trControl=ctrl)
+#### <br><b>4.2 Calculate AUC (Area Under ROC Curve) </b><br><br>
 
-## Compare model performance ##
-# Create a data frame to store all test results 
-testResults<- data.frame(obs=trainY,
-                          LR=predict(lrFit,trainX),
-                          LDA=predict(ldaFit,trainX),
-                          PenalizedLR=predict(glmnFit,trainX),
-                          NSC=predict(nscFit,trainX))
-# Confusion matrix
-lrFitCM <- confusionMatrix(lrFit, norm="none")
-glmnetCM <- confusionMatrix(glmnFit, norm="none")
-ldaFitCM <- confusionMatrix(ldaFit, norm="none")
-nscFitCM <- confusionMatrix(nscFit, norm="none")
-
+```{r message=FALSE, warning=FALSE}
 #ROC Curve
 library(pROC)
 lrROC <- roc(response=trainY,predictor=lrFit$pred$YES,levels=rev(levels(lrFit$pred$obs)))
 glmnROC <- roc(response=trainY,predictor=glmnFit$pred$YES,levels=rev(levels(glmnFit$pred$obs)))
 ldaROC <- roc(response=trainY,predictor=ldaFit$pred$YES,levels=rev(levels(ldaFit$pred$obs)))
 nscROC <- roc(response=trainY,predictor=nscFit$pred$YES,levels=rev(levels(nscFit$pred$obs)))
+mdaROC <- roc(response=trainY,predictor=mdaFit$pred$YES,levels=rev(levels(nscFit$pred$obs)))
+
+lrAUC <-round(auc(lrROC), 3)
+glmnAUC <-round(auc(glmnROC), 3)
+ldaAUC <-round(auc(ldaROC), 3)
+nscAUC <-round(auc(nscROC), 3)
+mdaAUC <-round(auc(mdaROC), 3)
+
+# Get Area under the ROC
+metrics_tr <- rbind(metrics_tr, c("AUC", lrAUC, glmnAUC, ldaAUC, nscAUC, mdaAUC))
+
+```
+
+#### <br><b>4.3 Compare models' performance metrics </b><br><br>
+
+* Compare Models' training (cross-validation) performance
+
+```{r}
+metrics_tr
+```
+
+* Compare Models' test performance
+
+```{r}
+metrics_test
+```
+
+#### <br><b>4.4 Plot Roc Curves </b><br><br>
+
+```{r out.width="500", out.height="400"}
 plot(lrROC, type="s", col='red', legacy.axes=TRUE)
 plot(glmnROC, type="s", add=TRUE, col='green', legacy.axes=TRUE)
 plot(ldaROC, type="s", add=TRUE, col='blue',legacy.axes=TRUE)
 plot(nscROC, type="s", add=TRUE, col='black', legacy.axes=TRUE)
-legend("bottomright", legend=c("LR", "GLMNET","LDA", "NSC"), col=c("red","green", "blue", "black"), lwd=2)
+legend("bottomright", legend=c("LR", "GLMNET", "NSC"), col=c("red","green", "black"), lwd=2)
 title(main="Compare ROC Curves")
-
-# Area under the ROC
-auc(lrROC)
-auc(glmnROC)
-auc(ldaROC)
-auc(nscROC)
 ```
 
-#### <br><b>3.2 </b><br><br>
-```{r}
 
-```
-
-#### <br><b>3.3 </b><br><br>
-
-```{r}
-
-```
-
-#### <br><b>3.4 </b><br><br>
-
-```{r}
-
-```
-
-#### <br><b>3.5 </b><br><br>
-
-```{r}
-
-```
-
-#### <br><b>3.6 </b><br><br>
-
-```{r}
-
-```
-
-### 4. Conclusion
-```{r}
-
-```
