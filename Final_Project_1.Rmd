@@ -39,7 +39,7 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 * Add Logistic regression, LDA, Penalized LogReg, and NSC models
 * Create confusion matrix, plot ROC curves, compare AUC
 
-#### 6-13 Bethany
+#### 6-15 Bethany
 * Reorganized EDA
 * Organized and cleaned up data preprocessing
 * Deleted more low variance/skewed predictors
@@ -49,6 +49,18 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 * Completed the linear classification models: LR, LDA, GLMN, NSC
 * Added one nonlinear classification models: MDA
 * Completed the models evaluation section
+
+#### 6-16 Bethany
+* Added random forest model
+* Added bagged tree model
+* Added boosted tree model
+* Added a new set of variables: trainX_noDummy, testX_noDummy, they are used in the tree models to reduce features/run time
+* Did various experiments on selecting/deleting features, what used now seemed to be optimal
+* Compared removel numerical outliers vs no removal, removal gives better results
+
+Notes:
+* The non-linear models are very slow, tuning needs to be performed in very small steps
+* We may continue to tune the current models or try other suitable non-linear models
 
 
 ### 1. Exploratory Data Analysis<br><br>
@@ -60,6 +72,7 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 df <- read.csv(file = "diabetic_data.csv", na.strings=c("?"))
 dim(df)
 str(df)
+
 ```
 * There are 101766 data records with 50 features
 
@@ -123,6 +136,7 @@ table(df$readmitted)
 
 ```{r message=FALSE, warning=FALSE}
 library(plyr)
+
 # Combine all readmissions
 revalue(df$readmitted, c("<30" = "YES")) -> df$readmitted
 revalue(df$readmitted, c(">30" = "YES")) -> df$readmitted
@@ -189,6 +203,8 @@ correlations <- cor(df_num)
 
 # Correlation plot
 corrplot(correlations, order = "hclust")
+
+correlations
 ```
 
 #### <br><b>1.9 Distribution of the numerical variables</b><br><br>
@@ -418,7 +434,6 @@ Feature removal were performed on the following variables for the following reas
 * number_emergency, number_outpatient, number_inpatient, A1Cresult, glyburide, pioglitazone, pioglitazone, rosiglitazone, glipizide are removed because values show low variance and are extremely skewed.
 
 ```{r}
-# df_pr <- subset(df_pr, select = -c(encounter_id, patient_nbr,weight,medical_specialty,payer_code,diag_1,diag_2,diag_3,race))
 
 df_pr <- subset(df_pr, select = -c(encounter_id, patient_nbr, diag_1, diag_2,diag_3, race, number_emergency, number_outpatient, number_inpatient, A1Cresult, glyburide, pioglitazone, pioglitazone, rosiglitazone, glipizide))
 
@@ -440,7 +455,7 @@ head(null_counts, 5)
 #Show proportion of null counts
 head(prop.table(null_counts), 5)
 
-df_pr <- subset(df_pr, select = -c(weight,medical_specialty, payer_code))
+df_pr <- subset(df_pr, select = -c(weight, medical_specialty, payer_code))
 
 dim(df_pr)
 sum(is.na(df_pr))
@@ -457,7 +472,7 @@ colnames(df_pr)
 quartiles <- quantile(df_pr$num_lab_procedures, probs=c(.25, .75), na.rm = FALSE)
 IQR <- IQR(df_pr$num_lab_procedures)
 Lower <- quartiles[1] - 1.5*IQR
-Upper <- quartiles[2] + 1.5*IQR 
+Upper <- quartiles[2] + 1.5*IQR
 
 count_before <-dim(df_pr)[1]
 df_pr <- subset(df_pr, df_pr$num_lab_procedures > Lower & df_pr$num_lab_procedures < Upper)
@@ -465,7 +480,7 @@ count_after <-dim(df_pr)[1]
 cat(count_before-count_after, " outliers in num_lab_procedures have been removed. \n")
 
 
-# Remove outlier from column 'number_diagnoses'
+# Remove outliers from column 'number_diagnoses'
 quartiles <- quantile(df_pr$number_diagnoses, probs=c(.25, .75), na.rm = FALSE)
 IQR <- IQR(df_pr$number_diagnoses)
 Lower <- quartiles[1] - 1.5*IQR
@@ -481,27 +496,16 @@ cat(count_before-count_after, " outliers in number_diagnoses have been removed. 
 quartiles <- quantile(df_pr$num_medications, probs=c(.25, .75), na.rm = FALSE)
 IQR <- IQR(df_pr$num_medications)
 Lower <- quartiles[1] - 2*IQR
-Upper <- quartiles[2] + 2*IQR 
+Upper <- quartiles[2] + 2*IQR
 
 count_before <-dim(df_pr)[1]
 df_pr <- subset(df_pr, df_pr$num_medications > Lower & df_pr$num_medications < Upper)
 count_after <-dim(df_pr)[1]
 cat(count_before-count_after, " outliers in num_medications have been removed. \n")
 
-
-# Remove outlier from column 'number_inpatient'
-# quartiles <- quantile(df_pr$num_lab_procedures, probs=c(.25, .75), na.rm = FALSE)
-# IQR <- IQR(df_pr$num_lab_procedures)
-# Lower <- quartiles[1] - 2*IQR
-# Upper <- quartiles[2] + 2*IQR 
-# count(df_pr$num_lab_procedures > Lower & df_pr$num_lab_procedures < Upper)
-# 
-# df_pr <- subset(df_pr, df_pr$num_lab_procedures > Lower & df_pr$num_lab_procedures < Upper)
-# dim(df_pr)
-
 ```
 
-#### <br><b>2.5 Separate X and Y</b><br><br>
+#### <br><b>2.5 Partition data into training and test datasets using a 70% ratio</b><br><br>
 
 * readmitted is the predicted variable. It will be separated from the predictors.
 
@@ -510,33 +514,7 @@ cat(count_before-count_after, " outliers in num_medications have been removed. \
 dfX <- subset(df_pr, select = -c(readmitted))
 dfY <- subset(df_pr, select = c(readmitted))
 
-```
-
-#### <br><b>2.6 Convert categorical variables to dummy variables</b><br><br>
-
-* Categorical variables will now be converted into n-1 dummy variables. In a new dataframe 'df_dummies', we will add the dummy variables and remove the original columns.
-
-```{r message=FALSE, warning=FALSE}
-library(fastDummies)
-
-# dfX <- dummy_cols(dfX, 
-#            select_columns=c("gender","age","admission_type_id","discharge_disposition_id", "A1Cresult","admission_source_id", "metformin", "glipizide", "glyburide","pioglitazone", "rosiglitazone", "insulin", "change","diabetesMed"),
-#            remove_first_dummy=TRUE, remove_selected_columns=TRUE)
-
-dfX <- dummy_cols(dfX, 
-           select_columns=c("gender","age","admission_type_id","discharge_disposition_id","metformin", "insulin", "change","diabetesMed", "admission_source_id"),
-           remove_first_dummy=TRUE, remove_selected_columns=TRUE)
-
-dim(dfX)
-```
-
-* 99797 objects with 72 variables will be used for modeling.
-
-#### <br><b>2.7 Partition data into training and test datasets using a 70% ratio</b><br><br>
-
-```{r}
 set.seed(100)
-
 # Partition the dataset
 trainRows <- createDataPartition(dfY$readmitted, p = .70, list = FALSE) 
 
@@ -554,7 +532,7 @@ dim(testX)
 * After the partition, there are 69858 instances in the training set and 29939 instances in the test set.
 
 
-#### <br><b>2.8 Trandform and standardize features: center and scale</b><br><br>
+#### <br><b>2.6 Trandform and standardize features: center and scale</b><br><br>
 
 ```{r}
 # center and scale the training set 
@@ -565,7 +543,45 @@ trainX <- predict(train_tran, trainX)
 testX <- predict(train_tran, testX)
 ```
 
-#### <br><b>2.9 PCA Analysis</b><br><br>
+#### <br><b>2.7 Convert categorical variables to dummy variables</b><br><br>
+
+* Categorical variables will now be converted into n-1 dummy variables. In a new dataframe 'df_dummies', we will add the dummy variables and remove the original columns.
+
+```{r message=FALSE, warning=FALSE}
+library(fastDummies)
+
+# Some models do not require dummy variable, like the trees
+# Will use these two for modeling and testing
+trainX_noDummy <- trainX
+testX_noDummy <- testX
+
+# trainX <- dummy_cols(trainX,
+#            select_columns=c("gender","age","admission_type_id","discharge_disposition_id", "A1Cresult","admission_source_id", "metformin", "glipizide", "glyburide","pioglitazone", "rosiglitazone", "insulin", "change","diabetesMed"),
+#            remove_first_dummy=TRUE, remove_selected_columns=TRUE)
+# 
+# testX <- dummy_cols(testX,
+#            select_columns=c("gender","age","admission_type_id","discharge_disposition_id", "A1Cresult","admission_source_id", "metformin", "glipizide", "glyburide","pioglitazone", "rosiglitazone", "insulin", "change","diabetesMed"),
+#            remove_first_dummy=TRUE, remove_selected_columns=TRUE)
+
+
+trainX <- dummy_cols(trainX,
+           select_columns=c("gender","age","admission_type_id","discharge_disposition_id","metformin", "insulin", "change","diabetesMed", "admission_source_id"),
+           remove_first_dummy=TRUE, remove_selected_columns=TRUE)
+
+testX <- dummy_cols(testX,
+           select_columns=c("gender","age","admission_type_id","discharge_disposition_id","metformin", "insulin", "change","diabetesMed", "admission_source_id"),
+           remove_first_dummy=TRUE, remove_selected_columns=TRUE)
+
+dim(trainX)
+dim(testX)
+
+dim(trainX_noDummy)
+dim(testX_noDummy)
+
+```
+
+
+#### <br><b>2.8 PCA Analysis</b><br><br>
 
 * This is a high-dimensional dataset, we want to see if PCA can be applied to reduce feature dimension.
 
@@ -596,7 +612,7 @@ First we will define a function to calculate the metrics of a trained model
 
 ```{r}
 # Define a function to calculate the metrics of a trained model
-get_training_metrics <- function(model) {
+get_training_metrics <- function(model, roc) {
   
   # Total number of training objects
   total <- dim(trainX)[1]
@@ -604,20 +620,14 @@ get_training_metrics <- function(model) {
  # Construct model's confusion matrix
   cm <- confusionMatrix(model, norm = "none")
 
-  # Calculate accuracy
+  # Calculate metrics
   accuracy <- round((cm$table[1,1] + cm$table[2,2]) / total, 3)
-  
-  # Calculate sensitivity
   sensitivity <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[2,1]), 3)
-  
-  # Calculate Specificity
   specificity <- round(cm$table[2,2] / (cm$table[2,2] + cm$table[1,2]), 3) 
-  
-  # Calculate Precision
   precision <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[1,2]), 3) 
   
   # Return a vector of metrics
-  c(accuracy, sensitivity, specificity, precision)
+  c(accuracy, sensitivity, specificity, precision, round(roc,3))
 }
 
 ```
@@ -636,16 +646,10 @@ get_test_metrics <- function(test_results) {
   # Construct prediction's confusion matrix  
   cm <- confusionMatrix(test_results, testY, positive = "YES")
 
-  # Calculate accuracy
+  # Calculate metrics
   accuracy <- round((cm$table[1,1] + cm$table[2,2]) / total, 3)
-  
-  # Calculate sensitivity
   sensitivity <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[2,1]), 3)
-  
-  # Calculate Specificity
   specificity <- round(cm$table[2,2] / (cm$table[2,2] + cm$table[1,2]), 3) 
-  
-  # Calculate Precision
   precision <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[1,2]), 3) 
   
   # Return a vector of metrics
@@ -669,9 +673,10 @@ lrFit <- train(x = trainX, y = trainY,
                method = "glm", metric = "ROC", trControl = ctrl)
 
 # Calculate training/resampling performance metrics
-metrics_tr <- data.frame(Metric.Train = c("Accuracy", "Sensitivity", "Specificity", "Precision")) 
+metrics_tr <- data.frame(Metric.Train = c("Accuracy", "Sensitivity", "Specificity", "Precision", "ROC")) 
 
-metrics_tr$LR <- get_training_metrics(lrFit)
+metrics_tr$LR <- get_training_metrics(lrFit, lrFit$results$ROC)
+
 #metrics_tr
 
 # Predict on test data
@@ -681,13 +686,9 @@ lrTestResults <- predict(lrFit, testX)
 metrics_test <- data.frame(Metric.Test = c("Accuracy", "Sensitivity", "Specificity", "Precision")) 
 metrics_test$LR <- get_test_metrics(lrTestResults)
 
-# Display model performance
-#metrics_test
-cat("LR (training): accuracy =", metrics_tr$LR[1], ", sensitivity =", metrics_tr$LR[2], 
-    " , specificity =", metrics_tr$LR[3], ", Precision =", metrics_tr$LR[4], "\n")
-
-cat("LR (test): accuracy =", metrics_test$LR[1], " , sensitivity =", metrics_test$LR[2], 
-    ", specificity =", metrics_test$LR[3], ", Precision =", metrics_tr$LR[4], "\n")
+# Display model's performance
+metrics_tr[, c("Metric.Train", "LR")]
+metrics_test[, c("Metric.Test", "LR")]
 
 # Importance of the predictors
 lrImp <- varImp(lrFit, scale = FALSE)
@@ -705,7 +706,7 @@ ldaFit <- train(x = trainX,y = trainY,
                 method = "lda", metric = "ROC", trControl=ctrl)
 #ldaFit
 # Calculate training/resampling performance metrics
-metrics_tr$LDA <- get_training_metrics(ldaFit)
+metrics_tr$LDA <- get_training_metrics(ldaFit, ldaFit$results$ROC)
 #metrics_tr
 
 # Predict on test data
@@ -714,12 +715,9 @@ ldaTestResults <- predict(ldaFit, testX)
 # Calculate test performance metrics
 metrics_test$LDA <- get_test_metrics(ldaTestResults)
 
-# Display model performance
-cat("LDA (training): accuracy =", metrics_tr$LDA[1], ", sensitivity =", metrics_tr$LDA[2], 
-    " , specificity =", metrics_tr$LDA[3], ", Precision =", metrics_tr$LDA[4], "\n")
-
-cat("LDA (test): accuracy =", metrics_test$LDA[1], " , sensitivity =", metrics_test$LDA[2], 
-    ", specificity =", metrics_test$LDA[3], ", Precision =", metrics_tr$LDA[4], "\n")
+# Display model's performance
+metrics_tr[, c("Metric.Train", "LDA")]
+metrics_test[, c("Metric.Test", "LDA")]
 
 # Importance of the predictors
 ldaImp <- varImp(ldaFit, scale = FALSE)
@@ -736,12 +734,13 @@ glmnGrid <- expand.grid(alpha=c(0,0.1,0.2,0.4),
 glmnFit <- train(x = trainX, y = trainY, 
                  method="glmnet", tuneGrid=glmnGrid, 
                  metric="ROC", trControl=ctrl)
-#glmnFit
+glmnFit
+
 # Plot the tuning results
 plot(glmnFit)
 
 # Calculate training/resampling performance metrics
-metrics_tr$GLMN <- get_training_metrics(glmnFit)
+metrics_tr$GLMN <- get_training_metrics(glmnFit, glmnFit$results$ROC[1])
 #metrics_tr
 
 # Predict on test data
@@ -750,12 +749,9 @@ glmnTestResults <- predict(glmnFit, testX)
 # Calculate test performance metrics
 metrics_test$GLMN <- get_test_metrics(glmnTestResults)
 
-# Display model performance
-cat("Penalized LR (training): accuracy =", metrics_tr$GLMN[1], ", sensitivity =", metrics_tr$GLMN[2], 
-    " , specificity =", metrics_tr$GLMN[3], ", Precision =", metrics_tr$GLMN[4], "\n")
-
-cat("Penalized LR (test): accuracy =", metrics_test$GLMN[1], " , sensitivity =", metrics_test$GLMN[2], 
-    ", specificity =", metrics_test$GLMN[3], ", Precision =", metrics_tr$GLMN[4], "\n")
+# Display model's performance
+metrics_tr[, c("Metric.Train", "GLMN")]
+metrics_test[, c("Metric.Test", "GLMN")]
 
 # Importance of the predictors
 glmnImp <- varImp(glmnFit, scale = FALSE)
@@ -778,7 +774,7 @@ nscFit <- train(x=trainX,y=trainY,
 plot(nscFit)
 
 # Calculate training/resampling performance metrics
-metrics_tr$NSC <- get_training_metrics(nscFit)
+metrics_tr$NSC <- get_training_metrics(nscFit, nscFit$results$ROC[1])
 
 # Predict on test data
 nscTestResults <- predict(nscFit, testX)
@@ -786,12 +782,9 @@ nscTestResults <- predict(nscFit, testX)
 # Calculate test performance metrics
 metrics_test$NSC <- get_test_metrics(nscTestResults)
 
-# Display model performance
-cat("NSC (training): accuracy =", metrics_tr$NSC[1], ", sensitivity =", metrics_tr$NSC[2], 
-    " , specificity =", metrics_tr$NSC[3], ", Precision =", metrics_tr$NSC[4], "\n")
-
-cat("NSC (test): accuracy =", metrics_test$NSC[1], " , sensitivity =", metrics_test$NSC[2], 
-    ", specificity =", metrics_test$NSC[3], ", Precision =", metrics_tr$NSC[4], "\n")
+# Display model's performance
+metrics_tr[, c("Metric.Train", "NSC")]
+metrics_test[, c("Metric.Test", "NSC")]
 
 # Importance of the predictors
 nscImp <- varImp(nscFit, scale = FALSE)
@@ -800,6 +793,8 @@ plot(nscImp, top = 15)
 
 
 #### <br><b>3.5 Mixture Discriminant Analysis</b><br><br>
+
+* This model runs with warning/error message during the process, but did not stop.
 
 ```{r message=FALSE, warning=FALSE, out.width="400", out.height="350"}
 set.seed(123)
@@ -812,7 +807,7 @@ mdaFit <- train(x = trainX, y = trainY,
 plot(mdaFit)
 
 # Calculate training/resampling performance metrics
-metrics_tr$MDA <- get_training_metrics(mdaFit)
+metrics_tr$MDA <- get_training_metrics(mdaFit, mdaFit$results$ROC[1])
 #metrics_tr
 
 # Predict on test data
@@ -821,12 +816,10 @@ mdaTestResults <- predict(mdaFit, testX)
 # Calculate test performance metrics
 metrics_test$MDA <- get_test_metrics(mdaTestResults)
 
-# Display model performance
-cat("MDA (training): accuracy =", metrics_tr$MDA[1], ", sensitivity =", metrics_tr$MDA[2], 
-    " , specificity =", metrics_tr$MDA[3], ", Precision =", metrics_tr$MDA[4], "\n")
 
-cat("MDA (test): accuracy =", metrics_test$MDA[1], " , sensitivity =", metrics_test$MDA[2], 
-    ", specificity =", metrics_test$MDA[3], ", Precision =", metrics_tr$MDA[4], "\n")
+# Display model's performance
+metrics_tr[, c("Metric.Train", "MDA")]
+metrics_test[, c("Metric.Test", "MDA")]
 
 # Importance of the predictors
 mdaImp <- varImp(mdaFit, scale = FALSE)
@@ -835,27 +828,125 @@ plot(mdaImp, top = 15)
 ```
 
 
-#### <br><b>3.6 Support Vector Machines</b><br><br>
-
-* Tried, but had to stop running. It is too slow!
-
-```{r}
-# sigmaEst <- kernlab::sigest(as.matrix(trainX))
-# svmgrid <- expand.grid(sigma = sigmaEst, C = 2^seq(-2,+2))
-# 
-# set.seed(123)
-# svmRFit <- train(x = trainX, y = trainY,
-#                 method = "svmRadial", tuneGrid = svmgrid,
-#                 metric = "ROC", trControl = ctrl)
-# svmRFit
-```
-
-
-#### <br><b>3.7 </b><br><br>
+#### <br><b>3.6 Boosted Trees </b><br><br>
 
 ```{r}
 
+# gbmGrid <- expand.grid(interaction.depth = c(1, 3, 5),
+#                        n.trees = (1:10)*100,
+#                        shrinkage = c(.01, .1),
+#                        n.minobsinnode = 5)
+
+gbmGrid <- expand.grid(interaction.depth = c(3),
+                       n.trees = 500, 
+                       shrinkage = c(.2),
+                       n.minobsinnode = 5)
+
+set.seed(123)
+
+gbmFit <- train(x = trainX_noDummy, y = trainY,
+                method = "gbm", tuneGrid = gbmGrid,
+                verbose = FALSE, metric = "ROC", trControl = ctrl)
+
+gbmFit
+
+# Calculate training/resampling performance metrics
+metrics_tr$GBM <- get_training_metrics(gbmFit, gbmFit$results$ROC[1])
+#metrics_tr
+
+# Predict on test data
+gbmTestResults <- predict(gbmFit, testX_noDummy)
+
+# Calculate test performance metrics
+metrics_test$GBM <- get_test_metrics(gbmTestResults)
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "GBM")]
+metrics_test[, c("Metric.Test", "GBM")]
+
+# Importance of the predictors
+#!!!Error happend, not sure why?
+#gbmImp <- varImp(gbmFit, scale = FALSE)
+#plot(gbmImp, top = 15)
 ```
+
+
+#### <br><b>3.7 Bagged Tree</b><br><br>
+
+```{r}
+set.seed(123)
+
+trbagFit <- train(x = trainX_noDummy, y = trainY,
+                method = "treebag",
+                nbagg = 30,
+                metric = "ROC",
+                trControl = ctrl)
+
+#trbagFit
+
+# Calculate training/resampling performance metrics
+metrics_tr$TRBAG <- get_training_metrics(trbagFit, trbagFit$results$ROC)
+
+# Predict on test data
+trbagTestResults <- predict(trbagFit, testX_noDummy)
+
+# Calculate test performance metrics
+metrics_test$TRBAG <- get_test_metrics(trbagTestResults)
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "TRBAG")]
+metrics_test[, c("Metric.Test", "TRBAG")]
+
+# Importance of the predictors
+# Runs slow
+#trbagImp <- varImp(trbagFit, scale = FALSE)
+#plot(trbagImp, top = 15)
+```
+
+
+#### <br><b>3.8 Random Forest Tree Model</b><br><br>
+
+```{r}
+#mtryValues <- seq(1,10,1)
+
+set.seed(123)
+rfFit <- train(x = trainX_noDummy, y = trainY,
+                method = "rf",
+                ntree = 100,
+                #tuneGrid = data.frame(mtry = mtryValues),              
+                metric = "ROC",
+                trControl = ctrl)
+
+rfFit
+plot(rfFit)
+
+# Calculate training/resampling performance metrics
+metrics_tr$RF <- get_training_metrics(rfFit, rfFit$results$ROC[2])
+
+# Predict on test data
+rfTestResults <- predict(rfFit, testX_noDummy)
+
+# Calculate test performance metrics
+metrics_test$RF <- get_test_metrics(rfTestResults)
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "RF")]
+metrics_test[, c("Metric.Test", "RF")]
+
+# Importance of the predictors
+#rfImp <- varImp(rfFit, scale = FALSE)
+#plot(rfImp, top = 15)
+```
+
+
+#### <br><b>3.9 </b><br><br>
+
+
+```{r}
+
+```
+
+
 
 ### 4. Model Evaluation and Conclusion
 
@@ -880,16 +971,23 @@ lrROC <- roc(response=trainY,predictor=lrFit$pred$YES,levels=rev(levels(lrFit$pr
 glmnROC <- roc(response=trainY,predictor=glmnFit$pred$YES,levels=rev(levels(glmnFit$pred$obs)))
 ldaROC <- roc(response=trainY,predictor=ldaFit$pred$YES,levels=rev(levels(ldaFit$pred$obs)))
 nscROC <- roc(response=trainY,predictor=nscFit$pred$YES,levels=rev(levels(nscFit$pred$obs)))
-mdaROC <- roc(response=trainY,predictor=mdaFit$pred$YES,levels=rev(levels(nscFit$pred$obs)))
+mdaROC <- roc(response=trainY,predictor=mdaFit$pred$YES,levels=rev(levels(mdaFit$pred$obs)))
+gbmROC <- roc(response=trainY,predictor=gbmFit$pred$YES,levels=rev(levels(gbmFit$pred$obs)))
+#rfROC <- roc(response=trainY,predictor=rfFit$pred$YES,levels=rev(levels(rfFit$pred$obs)))
+trbagROC <- roc(response=trainY,predictor=trbagFit$pred$YES,levels=rev(levels(trbagFit$pred$obs)))
 
 lrAUC <-round(auc(lrROC), 3)
 glmnAUC <-round(auc(glmnROC), 3)
 ldaAUC <-round(auc(ldaROC), 3)
 nscAUC <-round(auc(nscROC), 3)
 mdaAUC <-round(auc(mdaROC), 3)
+gbmAUC <-round(auc(gbmROC), 3)
+rfAUC <-round(auc(rfROC), 3)
+trbagAUC <-round(auc(trbagROC), 3)
 
 # Get Area under the ROC
-metrics_tr <- rbind(metrics_tr, c("AUC", lrAUC, glmnAUC, ldaAUC, nscAUC, mdaAUC))
+metrics_tr <- rbind(metrics_tr, c("AUC", lrAUC, glmnAUC, ldaAUC, 
+                                  nscAUC, mdaAUC, gbmAUC, rfAUC, trbagAUC))
 
 ```
 
