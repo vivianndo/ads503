@@ -1,0 +1,1129 @@
+---
+title: "The Diabetes Project"
+author: "Vivian Do, Bethany Wang"
+date: "2023-06-05"
+output: html_document
+Reference: https://www.hindawi.com/journals/bmri/2014/781670/
+---
+
+### Update Notes:
+#### 6-4 Bethany
+* Layout the project
+* Did initial version of EDA
+
+#### 6-6 Vivian 
+* Modified some initial steps of checking and classifying features
+* Define response variable and convert to binary levels
+* Separate numerical and categorical variables
+* Added boxplots of numerical predictors and the target variable
+
+#### 6-7 Bethany
+* Summarized and analyzed the degenerated features
+* Completed histograms for all the other categorical features
+* Added another implementation of the boxplots in section 1.9
+* Did most of the data preprocessing
+* Not sure why the data imputing does not work?
+* Question/suggetion:  move the factoring the categorical variables to preprocessing section
+
+#### 6-8 Bethany
+* Cleaned up and reorganized EDA
+* Minor fixes in data preprocessing
+
+#### 6-12 Vivian
+* Create frequeny counts, proportions for each categorical variable vs. response
+* Create barcharts w/ proportions for all categorical variables + observed findings.
+* Fix data import to replace all "?" string with NA
+* Perform feature deletions (see reasonings below)
+* Convert categorical variables into dummies. Create new dataframe w/ dummies called 'df_dummies'
+* Perform centering/scaling
+* Add Logistic regression, LDA, Penalized LogReg, and NSC models
+* Create confusion matrix, plot ROC curves, compare AUC
+
+#### 6-15 Bethany
+* Reorganized EDA
+* Organized and cleaned up data preprocessing
+* Deleted more low variance/skewed predictors
+* Added step 2.4 "remove outliers"
+* Added step 2.9 "PCA Analysis"
+* Added functions to calculate a model's performance metrics
+* Completed the linear classification models: LR, LDA, GLMN, NSC
+* Added one nonlinear classification models: MDA
+* Completed the models evaluation section
+
+#### 6-16 Bethany
+* Added random forest model
+* Added bagged tree model
+* Added boosted tree model
+* Added a new set of variables: trainX_noDummy, testX_noDummy, they are used in the tree models to reduce features/run time
+* Did various experiments on selecting/deleting features, what used now seemed to be optimal
+* Compared removel numerical outliers vs no removal, removal gives better results
+
+Notes:
+* The non-linear models are very slow, tuning needs to be performed in very small steps
+* We may continue to tune the current models or try other suitable non-linear models
+
+
+### 1. Exploratory Data Analysis<br><br>
+
+#### <b>1.1 Import and check the Data</b><br><br>
+
+```{r}
+#Read in data, replace "?" with NA values 
+df <- read.csv(file = "diabetic_data.csv", na.strings=c("?"))
+dim(df)
+str(df)
+
+```
+* There are 101766 data records with 50 features
+
+**Vivian-Additional Data Prep**
+
+'discharge_disposition_id' (discharge ID), 'admission_type_id' (admission type ID), and 'admission_source_id' (admission source ID) are categorical variables with levels identified by their ID number. For example, 'admission_type_id' 1 refers to 'Emergency'. 
+
+For admission source and type, the following ID levels associated with null values will be replaced as NA:
+
+* Admission source ID 9 (Not Available), 17 (NULL), and 20 (Not Mapped)
+* Admission type ID 6 (NULL) and 8 (Not Mapped)
+```{r}
+admissionsourceRemoved <- c(9,17,20)
+df$admission_source_id[df$admission_source_id %in% admissionsourceRemoved] <- NA
+
+admissiontypeRemoved <- c(6,8)
+df$admission_type_id[df$admission_type_id %in% admissiontypeRemoved] <- NA
+table(df$admission_type_id)
+```
+
+All patient encounters associated with a discharge to hospice or death will be removed. 
+```{r}
+dischargedRemoved <- c(11,13,14,19,20,21) 
+df <- subset(df, !(discharge_disposition_id %in% dischargedRemoved))
+```
+
+**Check for Duplicated Observations**
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+n_distinct(df$encounter_id)
+n_distinct(df$patient_nbr)
+```
+
+* Out of 99343 encounters, there were 69990 unique patients. This means 29,353 encounters are of repeat patients. 
+* Since our dataset does not contain the date of each encounter, it is difficult to determine which encounter occurred first. 
+* To maintain statistical independence of observations (as required by some classification models, such as the Logistic Regression), duplicated rows will be removed. 
+```{r}
+df <- df[!duplicated(df$patient_nbr), ]
+dim(df)
+```
+
+There are 69,990 observations left in the dataset. 
+
+**Vivian-Feature Creation 6/19**
+
+Explore primary diagnoses ('diag_1') and secondary diagnoses ('diag_2', 'diag_3')
+```{r}
+# Convert to numeric
+df$diag_1 <- as.numeric(df$diag_1)
+df$diag_2 <- as.numeric(df$diag_2)
+df$diag_3 <- as.numeric(df$diag_3)
+
+# Show distributions of diagnoses 
+par(mfrow=c(1,3))
+hist(df$diag_1)
+hist(df$diag_2)
+hist(df$diag_3)
+summary(df$diag_1)
+
+# Feature Creation of Primary Diagnosis (all levels w/ less than 2500 instances are combined into 'Other')
+library(dplyr)
+
+df <- df %>%
+  mutate(primary_diagnosis = case_when(
+    substr(diag_1, 1, 3) == "250" ~ "Diabetes",
+    #between(as.numeric(diag_1), 001, 139) ~ "Infectious and Parasitic Diseases",
+    between(as.numeric(diag_1), 140, 239) ~ "Neoplasms",
+    between(as.numeric(diag_1), 320, 459) ~ "Circulatory",
+    between(as.numeric(diag_1), 460, 519) ~ "Respiratory",
+    between(as.numeric(diag_1), 520, 579) ~ "Digestive",
+    between(as.numeric(diag_1), 580, 629) ~ "Genitourinary System",
+    #between(as.numeric(diag_1), 680, 709) ~ "Skin/Subcutaneous Tissue",
+    between(as.numeric(diag_1), 710, 739) ~ "Musculoskeletal",
+    between(as.numeric(diag_1), 760, 779) ~ "Perinatal",
+    between(as.numeric(diag_1), 800, 999) ~ "Injury and Poisoning",
+    TRUE ~ "Other"
+  ))
+
+# Secondary Diagnosis
+df <- df %>%
+  mutate(secondary_diagnosis = case_when(
+    substr(diag_2, 1, 3) == "250" ~ "Diabetes",
+    #between(as.numeric(diag_2), 001, 139) ~ "Infectious and Parasitic Diseases",
+    between(as.numeric(diag_2), 140, 239) ~ "Neoplasms",
+    between(as.numeric(diag_2), 320, 459) ~ "Circulatory",
+    between(as.numeric(diag_2), 460, 519) ~ "Respiratory",
+    between(as.numeric(diag_2), 520, 579) ~ "Digestive",
+    between(as.numeric(diag_2), 580, 629) ~ "Genitourinary System",
+    #between(as.numeric(diag_2), 680, 709) ~ "Skin/Subcutaneous Tissue",
+    between(as.numeric(diag_2), 710, 739) ~ "Musculoskeletal",
+    between(as.numeric(diag_2), 760, 779) ~ "Perinatal",
+    between(as.numeric(diag_2), 800, 999) ~ "Injury and Poisoning",
+    TRUE ~ "Other"
+  ))
+
+# Secondary Diagnosis
+df <- df %>%
+  mutate(secondary_diagnosis2 = case_when(
+    substr(diag_3, 1, 3) == "250" ~ "Diabetes",
+    #between(as.numeric(diag_3), 001, 139) ~ "Infectious and Parasitic Diseases",
+    between(as.numeric(diag_3), 140, 239) ~ "Neoplasms",
+    between(as.numeric(diag_3), 320, 459) ~ "Circulatory",
+    between(as.numeric(diag_3), 460, 519) ~ "Respiratory",
+    between(as.numeric(diag_3), 520, 579) ~ "Digestive",
+    between(as.numeric(diag_3), 580, 629) ~ "Genitourinary System",
+    #between(as.numeric(diag_3), 680, 709) ~ "Skin/Subcutaneous Tissue",
+    between(as.numeric(diag_3), 710, 739) ~ "Musculoskeletal",
+    between(as.numeric(diag_3), 760, 779) ~ "Perinatal",
+    between(as.numeric(diag_3), 800, 999) ~ "Injury and Poisoning",
+    TRUE ~ "Other"
+  ))
+df$primary_diagnosis <- as.factor(df$primary_diagnosis)
+df$secondary_diagnosis <- as.factor(df$secondary_diagnosis)
+df$secondary_diagnosis2 <- as.factor(df$secondary_diagnosis2)
+table(df$primary_diagnosis)
+table(df$secondary_diagnosis)
+table(df$secondary_diagnosis2)
+```
+
+#### <b>1.2 Convert categorical variables into factors</b><br><br>
+
+* All feature that are recorded as chr type are categorical variables 
+* admission_type_id, discharge_disposition_id, admission_source_id are recorded as int, but should be taken as categorical variables.
+
+```{r}
+#Convert categorical variables into factors (according to Table 1 https://www.hindawi.com/journals/bmri/2014/781670/tab1/)
+df[sapply(df, is.character)] <- lapply(df[sapply(df, is.character)], 
+                                       as.factor)
+
+df$admission_type_id <- as.factor(df$admission_type_id)
+df$discharge_disposition_id <- as.factor(df$discharge_disposition_id)
+df$admission_source_id <- as.factor(df$admission_source_id)
+
+```
+
+* All categorical variables have been converted into factors
+
+#### <br><b>1.3 Classify features</b><br><br>
+
+* Subset numerical and categorical features
+
+```{r message=FALSE, warning=FALSE}
+# Subset numerical and categorical features into new data frames
+library(dplyr)
+df_num <- df %>%  select_if(is.integer)
+df_num <- subset(df_num, select = -c(encounter_id, patient_nbr))
+
+df_cat <- df %>% select_if(is.factor)
+
+# Show numerical variables
+cat("These are the numerical features:\n", colnames(df_num), "\n\n")
+
+# Show categorical variables
+cat("These are the categorical features:\n", colnames(df_cat), "\n\n")
+```
+
+#### <br><b>1.4 Explore and revalue the response variable</b><br><br>
+
+* We use "readmitted" as our response variable 
+
+```{r}
+# Show readmission counts
+table(df$readmitted)
+```
+
+* 11357 patient records were readmitted within 30 days, 35535 patient records were readmitted after 30 days, and 54863 patient records were not readmitted.
+
+* We will combine the categories '<30' and '>30' to account for all patient records who were readmitted.Thus, our response variable will be binary: Yes for patients who were readmitted, and No if the patient was not readmitted. 
+
+```{r message=FALSE, warning=FALSE}
+library(plyr)
+
+# Combine all readmissions
+revalue(df$readmitted, c("<30" = "YES")) -> df$readmitted
+revalue(df$readmitted, c(">30" = "YES")) -> df$readmitted
+
+# Show readmission counts using binary levels
+table(df$readmitted)
+
+```
+* After revalue response "<30" and ">30" to "YES", there are 46902 instances of "YES" and 54864 instances of "NO"
+
+#### <br><b>1.5 Check for missing values</b><br><br>
+
+```{r}
+# Check null values
+#Show null counts
+null_counts <- sort(colSums(is.na(df)), decreasing=TRUE)
+head(null_counts, 10)
+
+#Show proportion of null counts
+head(prop.table(null_counts), 10)
+```
+
+* The following predictors contain a significant number of null values: 'weight' (98569, 52%), medical_specialty (49949, 26%), 'payer_code' ( 40256, 21%), and 'race' (2273, 1%). 
+
+#### <br><b>1.6 Check degenerated features</b><br><br>
+
+```{r message=FALSE, warning=FALSE}
+
+library(caret)
+
+degenerateCols <- nearZeroVar(df)
+length(degenerateCols)
+
+degenerateColNames <- colnames(df[degenerateCols])
+degenerateColNum <- length(degenerateColNames)
+
+cat("These are ", degenerateColNum, " degenerated predictors:\n", degenerateColNames)
+
+#subset the degenerated predictors
+df_degenerated <- df[,degenerateColNames]
+
+colnames(df_degenerated)
+
+# Check the distribution of the degenerated predictors
+summary(df_degenerated)
+```
+
+* There are 18 degenerated predictors that show near-zero variance.
+
+#### <br><b>1.7 Statistics of the numerical variables</b><br><br>
+
+```{r}
+summary(df_num)
+```
+
+#### <br><b>1.8 Correlations of the numerical variables</b><br><br>
+
+* Find Correlations of numerical features
+
+```{r message=FALSE, warning=FALSE}
+
+library(corrplot)
+correlations <- cor(df_num)
+
+# Correlation plot
+corrplot(correlations, order = "hclust")
+
+correlations
+```
+
+#### <br><b>1.9 Distribution of the numerical variables</b><br><br>
+
+```{r out.width="1000", out.height="1000", message=FALSE, warning=FALSE}
+library(Hmisc)
+hist.data.frame(df_num)
+```
+
+#### <br><b>1.10 Explore the relationship between the numerical predictors and the predicted variable</b><br><br>
+
+```{r out.width="1000", out.height="800"}
+par(mfrow = c(2,4))
+
+boxplot(df$time_in_hospital ~ df$readmitted, col="blue")
+boxplot(df$num_lab_procedures ~ df$readmitted, col="orange")
+boxplot(df$number_diagnoses ~ df$readmitted, col="yellow")
+
+boxplot(df$number_emergency ~ df$readmitted, col="cyan")
+boxplot(df$num_medications ~ df$readmitted, col="purple")
+boxplot(df$number_inpatient ~ df$readmitted, col="green")
+boxplot(df$number_outpatient ~ df$readmitted, col="lightblue")
+```
+
+Patients who are readmitted, in general
+
+* Spend more time in the hospital
+  
+* Have more inpatient visits in the year preceding the encounter
+  
+* Have more diagnoses entered to the system during their encounter. 
+
+#### <br><b>1.11 Distribution of the categorical variables</b><br><br>
+
+```{r out.width="1200", out.height="1200"}
+par(mfrow = c(3,4))
+
+barplot(table(df$age), main="Distribution of Age", 
+        xlab="Age", ylab="Count", col="blue")
+
+barplot(table(df$race), main="Distribution of Race", 
+        xlab="Race", ylab="Count", col="orange")
+
+barplot(table(df$gender), main="Distribution of Gender", 
+        xlab="Gender", ylab="Count", col="lightblue")
+
+barplot(table(df$admission_type_id), main="Distribution of admission_type_id", 
+        xlab="admission_type_id", ylab="Count", col="blue")
+
+barplot(table(df$change), main="Distribution of change", 
+        xlab="Race", ylab="Count", col="orange")
+
+barplot(table(df$admission_source_id), main="Distribution of admission_source_id", 
+        xlab="admission_source_id", ylab="Count", col="lightblue")
+
+barplot(table(df$A1Cresult), main="Distribution of A1Cresult", 
+        xlab="A1Cresult", ylab="Count", col="green")
+
+barplot(table(df$diabetesMed), main="Distribution of diabetesMed", 
+        xlab="diabetesMed", ylab="Count", col="lightgreen")
+
+barplot(table(df$weight), main="Distribution of readmitted", 
+        xlab="readmitted", ylab="Count", col="purple")
+
+barplot(table(df$diag_1), main="Distribution of diag_1", 
+        xlab="diag_1", ylab="Count", col="orange")
+
+barplot(table(df$diag_2), main="Distribution of diag_2", 
+        xlab="diag_2", ylab="Count", col="lightblue")
+
+barplot(table(df$diag_3), main="Distribution of diag_3", 
+        xlab="diag_3", ylab="Count", col="green")
+```
+
+
+```{r out.width="1200", out.height="1200"}
+par(mfrow = c(3,4))
+
+barplot(table(df$payer_code), main="Distribution of payer_code", 
+        xlab="payer_code", ylab="Count", col="blue")
+
+barplot(table(df$medical_specialty), main="Distribution of medical_specialty", 
+        xlab="medical_specialty", ylab="Count", col="orange")
+
+barplot(table(df$A1Cresult), main="Distribution of A1Cresult", 
+        xlab="A1Cresult", ylab="Count", col="green")
+
+barplot(table(df$metformin), main="Distribution of metformin", 
+        xlab="metformin", ylab="Count", col="cyan")
+
+barplot(table(df$glipizide), main="Distribution of glipizide", 
+        xlab="glipizide", ylab="Count", col="blue")
+
+barplot(table(df$glyburide), main="Distribution of glyburide", 
+        xlab="glyburide", ylab="Count", col="orange")
+
+barplot(table(df$pioglitazone), main="Distribution of pioglitazone", 
+        xlab="pioglitazone", ylab="Count", col="green")
+
+barplot(table(df$rosiglitazone), main="Distribution of rosiglitazone", 
+        xlab="rosiglitazone", ylab="Count", col="cyan")
+
+barplot(table(df$insulin), main="Distribution of insulin", 
+        xlab="insulin", ylab="Count", col="blue")
+
+barplot(table(df$change), main="Distribution of change", 
+        xlab="change", ylab="Count", col="orange")
+
+barplot(table(df$diabetesMed), main="Distribution of diabetesMed", 
+        xlab="diabetesMed", ylab="Count", col="green")
+
+#barplot(table(df$medical_specialty), main="Distribution of Race", xlab="Race", ylab="Count", col="cyan")
+```
+
+#### <br><b>1.12 Explore the relationship between the categorical predictors and the predicted variable</b><br><br>
+
+```{r}
+# Frequency counts
+ct_race <- table(df$readmitted, df$race)
+ct_gender <- table(df$readmitted, df$gender)
+ct_age <- table(df$readmitted, df$age)
+ct_weight <- table(df$readmitted, df$weight)
+ct_admissionType <- table(df$readmitted, df$admission_type_id)
+ct_dischargeID <- table(df$readmitted, df$discharge_disposition_id)
+ct_admissionSource <- table(df$readmitted, df$admission_source_id)
+ct_payerCode <- table(df$readmitted, df$payer_code)
+ct_medSpec <- table(df$readmitted, df$medical_specialty)
+ct_A1C <- table(df$readmitted, df$A1Cresult)
+ct_metf <- table(df$readmitted, df$metformin)
+ct_glipz <- table(df$readmitted, df$glipizide)
+ct_glyb <- table(df$readmitted, df$glyburide)
+ct_piog <- table(df$readmitted, df$pioglitazone)
+ct_rosig <- table(df$readmitted, df$rosiglitazone)
+ct_insulin <- table(df$readmitted, df$insulin)
+ct_change <- table(df$readmitted, df$change)
+ct_diabMeds <- table(df$readmitted, df$diabetesMed)
+
+# Create contingency tables showing proportions 
+ct_race1 <- prop.table(table(df$readmitted, df$race),2)
+ct_gender1 <- prop.table(table(df$readmitted, df$gender),2)
+ct_age1 <- prop.table(table(df$readmitted, df$age),2)
+ct_weight1 <- prop.table(table(df$readmitted, df$weight),2)
+ct_admissionType1 <- prop.table(table(df$readmitted, df$admission_type_id),2)
+ct_dischargeID1 <- prop.table(table(df$readmitted, df$discharge_disposition_id),2)
+ct_admissionSource1 <- prop.table(table(df$readmitted, df$admission_source_id),2)
+ct_payerCode1 <- prop.table(table(df$readmitted, df$payer_code),2)
+ct_medSpec1 <- prop.table(table(df$readmitted, df$medical_specialty),2)
+ct_A1C1 <- prop.table(table(df$readmitted, df$A1Cresult),2)
+ct_metf1 <- prop.table(table(df$readmitted, df$metformin),2)
+ct_glipz1 <- prop.table(table(df$readmitted, df$glipizide),2)
+ct_glyb1 <- prop.table(table(df$readmitted, df$glyburide),2)
+ct_piog1 <- prop.table(table(df$readmitted, df$pioglitazone),2)
+ct_rosig1 <- prop.table(table(df$readmitted, df$rosiglitazone),2)
+ct_insulin1 <- prop.table(table(df$readmitted, df$insulin),2)
+ct_change1 <- prop.table(table(df$readmitted, df$change),2)
+ct_diabMeds1 <- prop.table(table(df$readmitted, df$diabetesMed),2)
+ct_A1C
+```
+
+```{r}
+## Create barplots ##
+# Patient Demographics (Legend removed for individual graphs where bars would be blocked)
+par(mfrow=c(3,2))
+barplot(ct_age1,main="Age Group",xlab="Age Group",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_race1,main="Race",xlab="Race",ylab="Readmitted",col=c("blue", "orange"),las=2)
+barplot(ct_gender1,main="Gender",xlab="Gender",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_gender1))
+barplot(ct_payerCode1,main="Payer Code",xlab="Payer Code",ylab="Readmitted",col=c("blue", "orange"),las=2)
+barplot(ct_weight1,main="Weight",xlab="Weight (lbs)",ylab="Readmitted",col=c("blue", "orange"),las=2)
+barplot(ct_dischargeID1,main="Discharge ID",xlab="Discharge ID",ylab="Readmitted",col=c("blue", "orange"))
+```
+
+* Race: Asians were disproportionately less likely to be readmitted. 
+* Weight: Patients weighing 0-25 or >200 lbs were disproportionately more likely to be readmitted.
+* Discharge ID: Discharge IDs 11, 19, and 20 were disproportionately less likely to be readmitted. Patients with discharge IDs 10,12,15 were disproportionately more likely to be readmitted. 
+
+```{r}
+# General encounter information
+par(mfrow=c(3,2))
+barplot(ct_admissionSource1,main="Admission Source",xlab="Admission Source",ylab="Readmitted",col=c("blue", "orange"),las=2)
+barplot(ct_admissionType1,main="Admission Type",xlab="Admission Type",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_A1C1,main="A1C Result",xlab="A1C Result",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_A1C))
+barplot(ct_change1,main="Medications Change",xlab="Medications Change",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_diabMeds1,main="Diabetes Medication",xlab="Diabetes Medication",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_medSpec1,main="Medical Specialty",xlab="Medical Specialty",ylab="Readmitted",col=c("blue", "orange"),las=2)
+```
+
+* Admission Source: Admission sources 11, 13, 14, 25 less likely to be readmitted. 
+* Admission Type: Admission type 7 less likely to be readmitted. 
+* Medical Specialty: Patients admitted by certain medical specialities were less likely to be readmitted, such as Speech, Psychiatry, and Neurology. 
+
+```{r}
+# All medications
+par(mfrow=c(3,2))
+barplot(ct_glipz1,main="Glipizide ",xlab="Glipizide",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_glyb1,main="Glyburide",xlab="Glyburide",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_glyb1))
+barplot(ct_metf1,main="Metformin",xlab="Metformin",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_metf1))
+barplot(ct_insulin1,main="Insulin",xlab="Insulin",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_piog1,main="Pioglitazone",xlab="Pioglitazone",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_rosig1,main="Rosiglitazone",xlab="Rosiglitazone",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_rosig1))
+```
+
+* Patients who were prescribed a decreased dosage of rosiglitazone were less likely to be readmitted. 
+* Besides this, no other significant differences for the change in/prescription of drugs were observed. 
+
+
+### 2. Data Preprocessing
+
+#### <br><b>2.1 Filter out degenerated predictors</b><br><br>
+```{r message=FALSE, warning=FALSE}
+# Use nearZeroVar function to filter out low variance features
+df_pr <- df[, -degenerateCols]
+dim(df_pr)
+colnames(df_pr)
+```
+
+* 18 degenerated predictors that show near-zero variance have been removed. 32 columns are left in the dataset.
+
+#### <br><b>2.2 Delete other useless features</b><br><br>
+
+Feature removal were performed on the following variables for the following reasons:
+
+* encounter_id and patient_nbr are random and do not contain relevant information
+
+* proportion of readmission is equal across all races
+
+* diag_1, diag_2, and diag_3 each contain over 700 levels and are not conducive to modeling
+
+* number_emergency, number_outpatient, number_inpatient, A1Cresult, glyburide, pioglitazone, pioglitazone, rosiglitazone, glipizide are removed because values show low variance and are extremely skewed.
+
+```{r}
+
+df_pr <- subset(df_pr, select = -c(encounter_id, patient_nbr, diag_1, diag_2,diag_3, race, number_emergency, number_outpatient, number_inpatient, A1Cresult, glyburide, pioglitazone, pioglitazone, rosiglitazone, glipizide))
+
+dim(df_pr)
+```
+
+* After this step, 18 columns are left in the data frame.
+
+#### <br><b>2.3 Handle missing values</b><br><br>
+
+* weight, medical_specialty, and payer_code contain large portion of missing values
+
+```{r}
+# Check null values
+#Show null counts
+null_counts <- sort(colSums(is.na(df_pr)), decreasing=TRUE)
+head(null_counts, 5)
+
+#Show proportion of null counts
+head(prop.table(null_counts), 5)
+
+df_pr <- subset(df_pr, select = -c(weight, medical_specialty, payer_code))
+
+dim(df_pr)
+sum(is.na(df_pr))
+colnames(df_pr)
+
+```
+
+* After this step, 15 columns are left in the data frame.
+
+#### <br><b>2.4 Remove outliers</b><br><br>
+
+```{r}
+# Remove outlier from column 'num_lab_procedures'
+quartiles <- quantile(df_pr$num_lab_procedures, probs=c(.25, .75), na.rm = FALSE)
+IQR <- IQR(df_pr$num_lab_procedures)
+Lower <- quartiles[1] - 1.5*IQR
+Upper <- quartiles[2] + 1.5*IQR
+
+count_before <-dim(df_pr)[1]
+df_pr <- subset(df_pr, df_pr$num_lab_procedures > Lower & df_pr$num_lab_procedures < Upper)
+count_after <-dim(df_pr)[1]
+cat(count_before-count_after, " outliers in num_lab_procedures have been removed. \n")
+
+
+# Remove outliers from column 'number_diagnoses'
+quartiles <- quantile(df_pr$number_diagnoses, probs=c(.25, .75), na.rm = FALSE)
+IQR <- IQR(df_pr$number_diagnoses)
+Lower <- quartiles[1] - 1.5*IQR
+Upper <- quartiles[2] + 1.5*IQR
+
+count_before <-dim(df_pr)[1]
+df_pr <- subset(df_pr, df_pr$number_diagnoses > Lower & df_pr$number_diagnoses < Upper)
+count_after <-dim(df_pr)[1]
+cat(count_before-count_after, " outliers in number_diagnoses have been removed. \n")
+
+
+# Remove outliers from column 'num_medications'
+quartiles <- quantile(df_pr$num_medications, probs=c(.25, .75), na.rm = FALSE)
+IQR <- IQR(df_pr$num_medications)
+Lower <- quartiles[1] - 2*IQR
+Upper <- quartiles[2] + 2*IQR
+
+count_before <-dim(df_pr)[1]
+df_pr <- subset(df_pr, df_pr$num_medications > Lower & df_pr$num_medications < Upper)
+count_after <-dim(df_pr)[1]
+cat(count_before-count_after, " outliers in num_medications have been removed. \n")
+
+```
+
+#### <br><b>2.5 Partition data into training and test datasets using a 70% ratio</b><br><br>
+
+* readmitted is the predicted variable. It will be separated from the predictors.
+
+```{r}
+#Separate X and Y using readmitted as predicted variable
+dfX <- subset(df_pr, select = -c(readmitted))
+dfY <- subset(df_pr, select = c(readmitted))
+
+set.seed(100)
+# Partition the dataset
+trainRows <- createDataPartition(dfY$readmitted, p = .70, list = FALSE) 
+
+trainX <- dfX[trainRows,]
+testX <-  dfX[-trainRows,]
+
+trainY <- dfY[trainRows,]
+testY <- dfY[-trainRows,]
+
+dim(trainX)
+dim(testX)
+
+```
+
+* After the partition, there are 69858 instances in the training set and 29939 instances in the test set.
+
+
+#### <br><b>2.6 Trandform and standardize features: center and scale</b><br><br>
+
+```{r}
+# center and scale the training set 
+train_tran <- preProcess(trainX, method=c("center", "scale"))
+trainX <- predict(train_tran, trainX)
+
+# center and scale the test set
+testX <- predict(train_tran, testX)
+```
+
+#### <br><b>2.7 Convert categorical variables to dummy variables</b><br><br>
+
+* Categorical variables will now be converted into n-1 dummy variables. In a new dataframe 'df_dummies', we will add the dummy variables and remove the original columns.
+
+```{r message=FALSE, warning=FALSE}
+library(fastDummies)
+
+# Some models do not require dummy variable, like the trees
+# Will use these two for modeling and testing
+trainX_noDummy <- trainX
+testX_noDummy <- testX
+
+# trainX <- dummy_cols(trainX,
+#            select_columns=c("gender","age","admission_type_id","discharge_disposition_id", "A1Cresult","admission_source_id", "metformin", "glipizide", "glyburide","pioglitazone", "rosiglitazone", "insulin", "change","diabetesMed"),
+#            remove_first_dummy=TRUE, remove_selected_columns=TRUE)
+# 
+# testX <- dummy_cols(testX,
+#            select_columns=c("gender","age","admission_type_id","discharge_disposition_id", "A1Cresult","admission_source_id", "metformin", "glipizide", "glyburide","pioglitazone", "rosiglitazone", "insulin", "change","diabetesMed"),
+#            remove_first_dummy=TRUE, remove_selected_columns=TRUE)
+
+
+trainX <- dummy_cols(trainX,
+           select_columns=c("gender","age","admission_type_id","discharge_disposition_id","metformin", "insulin", "change","diabetesMed", "admission_source_id","primary_diagnosis", "secondary_diagnosis", "secondary_diagnosis2"),
+           remove_first_dummy=TRUE, remove_selected_columns=TRUE)
+
+testX <- dummy_cols(testX,
+           select_columns=c("gender","age","admission_type_id","discharge_disposition_id","metformin", "insulin", "change","diabetesMed", "admission_source_id","primary_diagnosis","secondary_diagnosis", "secondary_diagnosis2"),
+           remove_first_dummy=TRUE, remove_selected_columns=TRUE)
+
+dim(trainX)
+dim(testX)
+
+dim(trainX_noDummy)
+dim(testX_noDummy)
+
+```
+
+
+#### <br><b>2.8 PCA Analysis</b><br><br>
+
+* This is a high-dimensional dataset, we want to see if PCA can be applied to reduce feature dimension.
+
+```{r}
+# Find the PCA from the training set
+# pca <- prcomp(trainX)
+# pca_var <- pca$sdev^2
+
+# Find the percentage of each PCA component
+# pca_percents <- pca_var / sum(pca_var)
+# cat("Percentage of the first 15 PCAs: ", pca_percents[1:15], "\n")
+
+# The total percentage of the first 50 PCAs
+# cat("The total percentage of the first 50 PCAs: ", sum(pca_percents[1:50]), "\n")
+```
+
+* We see there are no dominant PCA components. The first 50 components represent 82% of the features. Therefore, PCA won't help reduce features in this application.
+
+### 3. Modeling
+
+#### <br><b>3.0 Define  functions</b><br><br>
+
+First we will define a function to calculate the metrics of a trained model
+
+* The function will take one parameters: a trained model
+* The function will calculate these metrics including accuracy, sensitivity, specificity, precision
+* It will return a vector containing those metrics
+
+```{r}
+# Define a function to calculate the metrics of a trained model
+get_training_metrics <- function(model, roc) {
+  
+  # Total number of training objects
+  total <- dim(trainX)[1]
+    
+ # Construct model's confusion matrix
+  cm <- confusionMatrix(model, norm = "none")
+
+  # Calculate metrics
+  accuracy <- round((cm$table[1,1] + cm$table[2,2]) / total, 3)
+  sensitivity <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[2,1]), 3)
+  specificity <- round(cm$table[2,2] / (cm$table[2,2] + cm$table[1,2]), 3) 
+  precision <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[1,2]), 3) 
+  
+  # Return a vector of metrics
+  c(accuracy, sensitivity, specificity, precision, round(roc,3))
+}
+
+```
+
+Next we will define a function to calculate the metrics of prediction result on test dataset
+
+* The function will take one parameters: predicted results of the test set
+* The function will calculate these metrics including ROC, accuracy, sensitivity, specificity, precision
+* It will return a vector containing those metrics
+
+```{r}
+# Define a function to calculate the metrics of a trained model
+get_test_metrics <- function(test_results) {
+  total <- dim(testX)[1]
+  
+  # Construct prediction's confusion matrix  
+  cm <- confusionMatrix(test_results, testY, positive = "YES")
+
+  # Calculate metrics
+  accuracy <- round((cm$table[1,1] + cm$table[2,2]) / total, 3)
+  sensitivity <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[2,1]), 3)
+  specificity <- round(cm$table[2,2] / (cm$table[2,2] + cm$table[1,2]), 3) 
+  precision <- round(cm$table[1,1] / (cm$table[1,1] + cm$table[1,2]), 3) 
+  
+  # Return a vector of metrics
+  c(accuracy, sensitivity, specificity, precision)
+}
+
+```
+
+
+#### <br><b>3.1 Logistic Regression Model</b><br><br>
+
+```{r warning=FALSE, out.width="400", out.height="350"}
+
+# Define train control
+ctrl <- trainControl(method = "cv", summaryFunction = twoClassSummary, 
+                     classProbs = TRUE, savePredictions = "final")
+
+# Logistic Regression 
+set.seed(123)
+lrFit <- train(x = trainX, y = trainY,
+               method = "glm", metric = "ROC", trControl = ctrl)
+
+# Calculate training/resampling performance metrics
+metrics_tr <- data.frame(Metric.Train = c("Accuracy", "Sensitivity", "Specificity", "Precision", "ROC")) 
+
+metrics_tr$LR <- get_training_metrics(lrFit, lrFit$results$ROC)
+
+#metrics_tr
+
+# Predict on test data
+lrTestResults <- predict(lrFit, testX)
+
+# Calculate test performance metrics
+metrics_test <- data.frame(Metric.Test = c("Accuracy", "Sensitivity", "Specificity", "Precision")) 
+metrics_test$LR <- get_test_metrics(lrTestResults)
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "LR")]
+metrics_test[, c("Metric.Test", "LR")]
+
+# Importance of the predictors
+lrImp <- varImp(lrFit, scale = FALSE)
+plot(lrImp, top = 15)
+
+```
+
+
+#### <br><b>3.2  Linear Discriminant Analysis</b><br><br>
+
+```{r message=FALSE, warning=FALSE, out.width="400", out.height="350"}
+# Linear Discriminant Analysis
+set.seed(123)
+ldaFit <- train(x = trainX,y = trainY,
+                method = "lda", metric = "ROC", trControl=ctrl)
+#ldaFit
+# Calculate training/resampling performance metrics
+metrics_tr$LDA <- get_training_metrics(ldaFit, ldaFit$results$ROC)
+#metrics_tr
+
+# Predict on test data
+ldaTestResults <- predict(ldaFit, testX)
+
+# Calculate test performance metrics
+metrics_test$LDA <- get_test_metrics(ldaTestResults)
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "LDA")]
+metrics_test[, c("Metric.Test", "LDA")]
+
+# Importance of the predictors
+ldaImp <- varImp(ldaFit, scale = FALSE)
+plot(ldaImp, top = 15)
+```
+
+#### <br><b>3.3 Penalized Logistic Regression Model</b><br><br>
+
+```{r out.width="400", out.height="350"}
+# Penalized Logistic Regression
+set.seed(123)
+glmnGrid <- expand.grid(alpha=c(0,0.1,0.2,0.4),
+                        lambda=seq(.01, .1, length=5))
+glmnFit <- train(x = trainX, y = trainY, 
+                 method="glmnet", tuneGrid=glmnGrid, 
+                 metric="ROC", trControl=ctrl)
+glmnFit
+
+# Plot the tuning results
+plot(glmnFit)
+
+# Calculate training/resampling performance metrics
+metrics_tr$GLMN <- get_training_metrics(glmnFit, glmnFit$results$ROC[1])
+#metrics_tr
+
+# Predict on test data
+glmnTestResults <- predict(glmnFit, testX)
+
+# Calculate test performance metrics
+metrics_test$GLMN <- get_test_metrics(glmnTestResults)
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "GLMN")]
+metrics_test[, c("Metric.Test", "GLMN")]
+
+# Importance of the predictors
+glmnImp <- varImp(glmnFit, scale = FALSE)
+plot(glmnImp, top = 15)
+
+```
+
+#### <br><b>3.4 Nearest Shrunken Centroids Model</b><br><br>
+
+```{r out.width="400", out.height="350"}
+
+# Nearest Shrunken Centroids
+set.seed(123)
+nscFit <- train(x=trainX,y=trainY,
+                method="pam", tuneGrid=data.frame(threshold=seq(0,15, length=20)),
+                metric="ROC", trControl=ctrl)
+#nscFit
+
+# Plot the tuning result
+plot(nscFit)
+
+# Calculate training/resampling performance metrics
+metrics_tr$NSC <- get_training_metrics(nscFit, nscFit$results$ROC[1])
+
+# Predict on test data
+nscTestResults <- predict(nscFit, testX)
+
+# Calculate test performance metrics
+metrics_test$NSC <- get_test_metrics(nscTestResults)
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "NSC")]
+metrics_test[, c("Metric.Test", "NSC")]
+
+# Importance of the predictors
+nscImp <- varImp(nscFit, scale = FALSE)
+plot(nscImp, top = 15)
+```
+
+
+#### <br><b>3.5 Mixture Discriminant Analysis</b><br><br>
+
+* This model runs with warning/error message during the process, but did not stop.
+
+```{r message=FALSE, warning=FALSE, out.width="400", out.height="350"}
+set.seed(123)
+
+mdaFit <- train(x = trainX, y = trainY,
+               method = "mda", tuneGrid = expand.grid(subclasses=2:4),
+               metric = "ROC", trControl = ctrl)
+
+# Plot the tuning results
+plot(mdaFit)
+
+# Calculate training/resampling performance metrics
+metrics_tr$MDA <- get_training_metrics(mdaFit, mdaFit$results$ROC[1])
+#metrics_tr
+
+# Predict on test data
+mdaTestResults <- predict(mdaFit, testX)
+
+# Calculate test performance metrics
+metrics_test$MDA <- get_test_metrics(mdaTestResults)
+
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "MDA")]
+metrics_test[, c("Metric.Test", "MDA")]
+
+# Importance of the predictors
+mdaImp <- varImp(mdaFit, scale = FALSE)
+plot(mdaImp, top = 15)
+
+```
+
+
+#### <br><b>3.6 Boosted Trees </b><br><br>
+
+```{r}
+
+# gbmGrid <- expand.grid(interaction.depth = c(1, 3, 5),
+#                        n.trees = (1:10)*100,
+#                        shrinkage = c(.01, .1),
+#                        n.minobsinnode = 5)
+
+gbmGrid <- expand.grid(interaction.depth = c(3),
+                       n.trees = 500, 
+                       shrinkage = c(.2),
+                       n.minobsinnode = 5)
+
+set.seed(123)
+
+gbmFit <- train(x = trainX_noDummy, y = trainY,
+                method = "gbm", tuneGrid = gbmGrid,
+                verbose = FALSE, metric = "ROC", trControl = ctrl)
+
+gbmFit
+
+# Calculate training/resampling performance metrics
+metrics_tr$GBM <- get_training_metrics(gbmFit, gbmFit$results$ROC[1])
+#metrics_tr
+
+# Predict on test data
+gbmTestResults <- predict(gbmFit, testX_noDummy)
+
+# Calculate test performance metrics
+metrics_test$GBM <- get_test_metrics(gbmTestResults)
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "GBM")]
+metrics_test[, c("Metric.Test", "GBM")]
+
+# Importance of the predictors
+#!!!Error happend, not sure why?
+#gbmImp <- varImp(gbmFit, scale = FALSE)
+#plot(gbmImp, top = 15)
+```
+
+
+#### <br><b>3.7 Bagged Tree</b><br><br>
+
+```{r}
+set.seed(123)
+
+trbagFit <- train(x = trainX_noDummy, y = trainY,
+                method = "treebag",
+                nbagg = 30,
+                metric = "ROC",
+                trControl = ctrl)
+
+#trbagFit
+
+# Calculate training/resampling performance metrics
+metrics_tr$TRBAG <- get_training_metrics(trbagFit, trbagFit$results$ROC)
+
+# Predict on test data
+trbagTestResults <- predict(trbagFit, testX_noDummy)
+
+# Calculate test performance metrics
+metrics_test$TRBAG <- get_test_metrics(trbagTestResults)
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "TRBAG")]
+metrics_test[, c("Metric.Test", "TRBAG")]
+
+# Importance of the predictors
+# Runs slow
+#trbagImp <- varImp(trbagFit, scale = FALSE)
+#plot(trbagImp, top = 15)
+```
+
+
+#### <br><b>3.8 Random Forest Tree Model</b><br><br>
+
+```{r}
+#mtryValues <- seq(1,10,1)
+
+set.seed(123)
+rfFit <- train(x = trainX_noDummy, y = trainY,
+                method = "rf",
+                ntree = 100,
+                #tuneGrid = data.frame(mtry = mtryValues),              
+                metric = "ROC",
+                trControl = ctrl)
+
+rfFit
+plot(rfFit)
+
+# Calculate training/resampling performance metrics
+metrics_tr$RF <- get_training_metrics(rfFit, rfFit$results$ROC[2])
+
+# Predict on test data
+rfTestResults <- predict(rfFit, testX_noDummy)
+
+# Calculate test performance metrics
+metrics_test$RF <- get_test_metrics(rfTestResults)
+
+# Display model's performance
+metrics_tr[, c("Metric.Train", "RF")]
+metrics_test[, c("Metric.Test", "RF")]
+
+# Importance of the predictors
+#rfImp <- varImp(rfFit, scale = FALSE)
+#plot(rfImp, top = 15)
+```
+
+
+#### <br><b>3.9 </b><br><br>
+
+
+```{r}
+
+```
+
+
+
+### 4. Model Evaluation and Conclusion
+
+#### <br><b>4.1 Baseline Model </b><br><br>
+
+```{r}
+
+round(table(trainY) / length(trainY), 3)
+
+```
+
+* For this data analysis, a model's ability to predict the positive (readmitted-Yes) accurately is the
+most important metric. Therefore, we choose All Positive Model as the base model. From the above table, we see that when we assign all predictions as positive, the accuracy of this base model is 0.463.
+
+
+#### <br><b>4.2 Calculate AUC (Area Under ROC Curve) </b><br><br>
+
+```{r message=FALSE, warning=FALSE}
+#ROC Curve
+library(pROC)
+lrROC <- roc(response=trainY,predictor=lrFit$pred$YES,levels=rev(levels(lrFit$pred$obs)))
+glmnROC <- roc(response=trainY,predictor=glmnFit$pred$YES,levels=rev(levels(glmnFit$pred$obs)))
+ldaROC <- roc(response=trainY,predictor=ldaFit$pred$YES,levels=rev(levels(ldaFit$pred$obs)))
+nscROC <- roc(response=trainY,predictor=nscFit$pred$YES,levels=rev(levels(nscFit$pred$obs)))
+mdaROC <- roc(response=trainY,predictor=mdaFit$pred$YES,levels=rev(levels(mdaFit$pred$obs)))
+gbmROC <- roc(response=trainY,predictor=gbmFit$pred$YES,levels=rev(levels(gbmFit$pred$obs)))
+#rfROC <- roc(response=trainY,predictor=rfFit$pred$YES,levels=rev(levels(rfFit$pred$obs)))
+trbagROC <- roc(response=trainY,predictor=trbagFit$pred$YES,levels=rev(levels(trbagFit$pred$obs)))
+
+lrAUC <-round(auc(lrROC), 3)
+glmnAUC <-round(auc(glmnROC), 3)
+ldaAUC <-round(auc(ldaROC), 3)
+nscAUC <-round(auc(nscROC), 3)
+mdaAUC <-round(auc(mdaROC), 3)
+gbmAUC <-round(auc(gbmROC), 3)
+rfAUC <-round(auc(rfROC), 3)
+trbagAUC <-round(auc(trbagROC), 3)
+
+# Get Area under the ROC
+metrics_tr <- rbind(metrics_tr, c("AUC", lrAUC, glmnAUC, ldaAUC, 
+                                  nscAUC, mdaAUC, gbmAUC, rfAUC, trbagAUC))
+
+```
+
+#### <br><b>4.3 Compare models' performance metrics </b><br><br>
+
+* Compare Models' training (cross-validation) performance
+
+```{r}
+metrics_tr
+```
+
+* Compare Models' test performance
+
+```{r}
+metrics_test
+```
+
+#### <br><b>4.4 Plot Roc Curves </b><br><br>
+
+```{r out.width="500", out.height="400"}
+plot(lrROC, type="s", col='red', legacy.axes=TRUE)
+plot(glmnROC, type="s", add=TRUE, col='green', legacy.axes=TRUE)
+plot(ldaROC, type="s", add=TRUE, col='blue',legacy.axes=TRUE)
+plot(nscROC, type="s", add=TRUE, col='black', legacy.axes=TRUE)
+legend("bottomright", legend=c("LR", "GLMNET", "NSC"), col=c("red","green", "black"), lwd=2)
+title(main="Compare ROC Curves")
+```
+
+
+
