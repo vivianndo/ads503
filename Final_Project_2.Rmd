@@ -76,30 +76,15 @@ str(df)
 ```
 * There are 101766 data records with 50 features
 
-**Vivian-Additional Data Prep**
+#### <br><b>Filter out Irrelevant Observations</b><br><br>
 
-'discharge_disposition_id' (discharge ID), 'admission_type_id' (admission type ID), and 'admission_source_id' (admission source ID) are categorical variables with levels identified by their ID number. For example, 'admission_type_id' 1 refers to 'Emergency'. 
-
-For admission source and type, the following ID levels associated with null values will be replaced as NA:
-
-* Admission source ID 9 (Not Available), 17 (NULL), and 20 (Not Mapped)
-* Admission type ID 6 (NULL) and 8 (Not Mapped)
-```{r}
-admissionsourceRemoved <- c(9,17,20)
-df$admission_source_id[df$admission_source_id %in% admissionsourceRemoved] <- NA
-
-admissiontypeRemoved <- c(6,8)
-df$admission_type_id[df$admission_type_id %in% admissiontypeRemoved] <- NA
-table(df$admission_type_id)
-```
-
-All patient encounters associated with a discharge to hospice or death will be removed. 
+All patient encounters associated with a discharge to hospice or death will be removed, as the chance of readmission is low-impossible. 
 ```{r}
 dischargedRemoved <- c(11,13,14,19,20,21) 
 df <- subset(df, !(discharge_disposition_id %in% dischargedRemoved))
 ```
 
-**Check for Duplicated Observations**
+Remove duplicated encounters with the same patient:
 ```{r message=FALSE, warning=FALSE}
 library(dplyr)
 n_distinct(df$encounter_id)
@@ -116,7 +101,84 @@ dim(df)
 
 There are 69,990 observations left in the dataset. 
 
-**Vivian-Feature Creation 6/19**
+#### <br><b>Check degenerated features</b><br><br>
+
+```{r message=FALSE, warning=FALSE}
+
+library(caret)
+
+degenerateCols <- nearZeroVar(df)
+length(degenerateCols)
+
+degenerateColNames <- colnames(df[degenerateCols])
+degenerateColNum <- length(degenerateColNames)
+
+cat("These are ", degenerateColNum, " degenerated predictors:\n", degenerateColNames)
+
+#subset the degenerated predictors
+df_degenerated <- df[,degenerateColNames]
+
+colnames(df_degenerated)
+
+# Check the distribution of the degenerated predictors
+summary(df_degenerated)
+```
+
+* There are 18 degenerated predictors that show near-zero variance.
+
+#### <br><b> Filter out degenerated predictors</b><br><br>
+```{r message=FALSE, warning=FALSE}
+# Use nearZeroVar function to filter out low variance features
+df<- df[, -degenerateCols]
+dim(df)
+colnames(df)
+```
+
+* 18 degenerated predictors that show near-zero variance have been removed. 32 columns are left in the dataset.
+
+#### <br><b> Filter out categorical levels indicating nulls</b><br><br>
+
+'discharge_disposition_id' (discharge ID), 'admission_type_id' (admission type ID), and 'admission_source_id' (admission source ID) are categorical variables with levels identified by their ID number. For example, 'admission_type_id' 1 refers to 'Emergency'. 
+
+For admission source and type, the following ID levels associated with null values will be replaced as NA:
+
+* Admission source ID 9 (Not Available), 17 (NULL), and 20 (Not Mapped)
+* Admission type ID 6 (NULL) and 8 (Not Mapped)
+```{r}
+admissionsourceRemoved <- c(9,17,20)
+df$admission_source_id[df$admission_source_id %in% admissionsourceRemoved] <- NA
+
+admissiontypeRemoved <- c(6,8)
+df$admission_type_id[df$admission_type_id %in% admissiontypeRemoved] <- NA
+table(df$admission_source_id)
+sum(is.na(df$admission_source_id))
+```
+
+#### <br><b>1.5 Check for missing values</b><br><br>
+
+```{r}
+# Check null values
+#Show null counts
+null_counts <- sort(colSums(is.na(df)), decreasing=TRUE)
+head(null_counts,10)
+
+#Show proportion of null counts
+nullProp <- sort(colMeans(is.na(df)), decreasing=TRUE)
+head(nullProp,10)
+```
+
+* The following predictors contain a significant number of null values: 'weight' (67292, 96.02%), medical_specialty (33654,48.08%), 'payer_code' (30416,43.46%).
+* The following predictors contain less than 10% null values: 'admission_source_id' (5069, 7.24%), 'admission_type_id' (4807, 6.87%), 'race' (1919, 2.74%), 'diag_3' (1224, 1.75%), 'diag_2' (293, 0.42%), and 'diag_1' (10, <0.01%)
+
+#### <br><b>2.3 Handle missing values</b><br><br>
+
+* Delete weight, medical_specialty, and payer_code, which contain a large portion of missing values.
+
+```{r}
+df<- subset(df, select = -c(weight, medical_specialty, payer_code))
+```
+
+#### <br><b>Feature Creation</b><br><br>
 
 Explore primary diagnoses ('diag_1') and secondary diagnoses ('diag_2', 'diag_3')
 ```{r}
@@ -131,8 +193,10 @@ hist(df$diag_1)
 hist(df$diag_2)
 hist(df$diag_3)
 summary(df$diag_1)
+```
 
-# Feature Creation of Primary Diagnosis (all levels w/ less than 2500 instances are combined into 'Other')
+Extract primary/secondary diagnoses
+```{r}
 library(dplyr)
 
 df <- df %>%
@@ -187,9 +251,77 @@ df <- df %>%
 df$primary_diagnosis <- as.factor(df$primary_diagnosis)
 df$secondary_diagnosis <- as.factor(df$secondary_diagnosis)
 df$secondary_diagnosis2 <- as.factor(df$secondary_diagnosis2)
+```
+
+Show counts of diseases for the primary and secondary diagnosis:
+```{r}
 table(df$primary_diagnosis)
 table(df$secondary_diagnosis)
 table(df$secondary_diagnosis2)
+```
+
+* All levels w/ less than 2500 instances are combined into 'Other'
+* Most common primary/secondary diagnosis were circulatory. 
+* 5748 patients had diabetes as their primary diagnosis
+* 22247 patients had diabetes as their secondary diagnosis
+
+#### <br><b>2.2 Delete other useless features</b><br><br>
+
+Feature removal were performed on the following variables for the following reasons:
+
+* encounter_id and patient_nbr are random and do not contain relevant information
+
+* diag_1, diag_2, and diag_3 each contain over 700 levels and are not conducive to modeling. We will use the extracted categorical features instead, which have 9 levels each. 
+
+* number_emergency, number_outpatient, number_inpatient, A1Cresult, glyburide, pioglitazone, pioglitazone, rosiglitazone, glipizide are removed because values show low variance and are extremely skewed.
+
+```{r}
+
+df <- subset(df, select = -c(encounter_id, patient_nbr, diag_1, diag_2,diag_3, number_emergency, number_outpatient, number_inpatient, A1Cresult, glyburide, pioglitazone, pioglitazone, rosiglitazone, glipizide))
+
+dim(df)
+```
+
+* After this step, 19 columns are left in the data frame.
+
+#### <br><b>2.4 Remove outliers</b><br><br>
+
+```{r}
+# Remove outlier from column 'num_lab_procedures'
+quartiles <- quantile(df$num_lab_procedures, probs=c(.25, .75), na.rm = FALSE)
+IQR <- IQR(df$num_lab_procedures)
+Lower <- quartiles[1] - 1.5*IQR
+Upper <- quartiles[2] + 1.5*IQR
+
+count_before <-dim(df)[1]
+df<- subset(df, df$num_lab_procedures > Lower & df$num_lab_procedures < Upper)
+count_after <-dim(df)[1]
+cat(count_before-count_after, " outliers in num_lab_procedures have been removed. \n")
+
+
+# Remove outliers from column 'number_diagnoses'
+quartiles <- quantile(df$number_diagnoses, probs=c(.25, .75), na.rm = FALSE)
+IQR <- IQR(df$number_diagnoses)
+Lower <- quartiles[1] - 1.5*IQR
+Upper <- quartiles[2] + 1.5*IQR
+
+count_before <-dim(df)[1]
+df <- subset(df, df$number_diagnoses > Lower & df$number_diagnoses < Upper)
+count_after <-dim(df)[1]
+cat(count_before-count_after, " outliers in number_diagnoses have been removed. \n")
+
+
+# Remove outliers from column 'num_medications'
+quartiles <- quantile(df$num_medications, probs=c(.25, .75), na.rm = FALSE)
+IQR <- IQR(df$num_medications)
+Lower <- quartiles[1] - 2*IQR
+Upper <- quartiles[2] + 2*IQR
+
+count_before <-dim(df)[1]
+df <- subset(df, df$num_medications > Lower & df$num_medications < Upper)
+count_after <-dim(df)[1]
+cat(count_before-count_after, " outliers in num_medications have been removed. \n")
+
 ```
 
 #### <b>1.2 Convert categorical variables into factors</b><br><br>
@@ -218,8 +350,6 @@ df$admission_source_id <- as.factor(df$admission_source_id)
 # Subset numerical and categorical features into new data frames
 library(dplyr)
 df_num <- df %>%  select_if(is.integer)
-df_num <- subset(df_num, select = -c(encounter_id, patient_nbr))
-
 df_cat <- df %>% select_if(is.factor)
 
 # Show numerical variables
@@ -231,68 +361,32 @@ cat("These are the categorical features:\n", colnames(df_cat), "\n\n")
 
 #### <br><b>1.4 Explore and revalue the response variable</b><br><br>
 
-* We use "readmitted" as our response variable 
+We use "readmitted" as our response variable 
 
 ```{r}
 # Show readmission counts
 table(df$readmitted)
 ```
 
-* 11357 patient records were readmitted within 30 days, 35535 patient records were readmitted after 30 days, and 54863 patient records were not readmitted.
+* 6147 patients were readmitted within 30 days
+* 21891 patients were readmitted after 30 days
+* 40445 patients were not readmitted
 
-* We will combine the categories '<30' and '>30' to account for all patient records who were readmitted.Thus, our response variable will be binary: Yes for patients who were readmitted, and No if the patient was not readmitted. 
+We will combine all patients who were admitted into one level. Thus, our response variable will be binary: 
+
+* YES if the patient was readmitted at any time
+* NO if the patient was not readmitted 
 
 ```{r message=FALSE, warning=FALSE}
 library(plyr)
 
-# Combine all readmissions
 revalue(df$readmitted, c("<30" = "YES")) -> df$readmitted
 revalue(df$readmitted, c(">30" = "YES")) -> df$readmitted
 
 # Show readmission counts using binary levels
 table(df$readmitted)
-
 ```
-* After revalue response "<30" and ">30" to "YES", there are 46902 instances of "YES" and 54864 instances of "NO"
-
-#### <br><b>1.5 Check for missing values</b><br><br>
-
-```{r}
-# Check null values
-#Show null counts
-null_counts <- sort(colSums(is.na(df)), decreasing=TRUE)
-head(null_counts, 10)
-
-#Show proportion of null counts
-head(prop.table(null_counts), 10)
-```
-
-* The following predictors contain a significant number of null values: 'weight' (98569, 52%), medical_specialty (49949, 26%), 'payer_code' ( 40256, 21%), and 'race' (2273, 1%). 
-
-#### <br><b>1.6 Check degenerated features</b><br><br>
-
-```{r message=FALSE, warning=FALSE}
-
-library(caret)
-
-degenerateCols <- nearZeroVar(df)
-length(degenerateCols)
-
-degenerateColNames <- colnames(df[degenerateCols])
-degenerateColNum <- length(degenerateColNames)
-
-cat("These are ", degenerateColNum, " degenerated predictors:\n", degenerateColNames)
-
-#subset the degenerated predictors
-df_degenerated <- df[,degenerateColNames]
-
-colnames(df_degenerated)
-
-# Check the distribution of the degenerated predictors
-summary(df_degenerated)
-```
-
-* There are 18 degenerated predictors that show near-zero variance.
+The response variable now contains 28038 instances of "YES" and 40445 of "NO". 
 
 #### <br><b>1.7 Statistics of the numerical variables</b><br><br>
 
@@ -325,95 +419,48 @@ hist.data.frame(df_num)
 #### <br><b>1.10 Explore the relationship between the numerical predictors and the predicted variable</b><br><br>
 
 ```{r out.width="1000", out.height="800"}
-par(mfrow = c(2,4))
+par(mfrow = c(2,2))
 
 boxplot(df$time_in_hospital ~ df$readmitted, col="blue")
 boxplot(df$num_lab_procedures ~ df$readmitted, col="orange")
 boxplot(df$number_diagnoses ~ df$readmitted, col="yellow")
-
-boxplot(df$number_emergency ~ df$readmitted, col="cyan")
 boxplot(df$num_medications ~ df$readmitted, col="purple")
-boxplot(df$number_inpatient ~ df$readmitted, col="green")
-boxplot(df$number_outpatient ~ df$readmitted, col="lightblue")
 ```
-
-Patients who are readmitted, in general
+Patients who are readmitted, in general:
 
 * Spend more time in the hospital
-  
-* Have more inpatient visits in the year preceding the encounter
-  
-* Have more diagnoses entered to the system during their encounter. 
+* Have more lab procedures done
 
 #### <br><b>1.11 Distribution of the categorical variables</b><br><br>
 
 ```{r out.width="1200", out.height="1200"}
-par(mfrow = c(3,4))
+par(mfrow = c(2,3))
 
 barplot(table(df$age), main="Distribution of Age", 
-        xlab="Age", ylab="Count", col="blue")
+         ylab="Count", col="lightblue",las=2)
 
 barplot(table(df$race), main="Distribution of Race", 
-        xlab="Race", ylab="Count", col="orange")
+        ylab="Count", col="orange",las=2)
 
 barplot(table(df$gender), main="Distribution of Gender", 
-        xlab="Gender", ylab="Count", col="lightblue")
+         ylab="Count", col="lightblue",las=2)
 
-barplot(table(df$admission_type_id), main="Distribution of admission_type_id", 
-        xlab="admission_type_id", ylab="Count", col="blue")
+barplot(table(df$primary_diagnosis), main="Distribution of Primary Diagnosis", 
+       ylab="Count", col="orange", las=2)
 
-barplot(table(df$change), main="Distribution of change", 
-        xlab="Race", ylab="Count", col="orange")
+barplot(table(df$secondary_diagnosis), main="Distribution of Secondary Diagnosis", 
+         ylab="Count", col="lightblue", las=2)
 
-barplot(table(df$admission_source_id), main="Distribution of admission_source_id", 
-        xlab="admission_source_id", ylab="Count", col="lightblue")
-
-barplot(table(df$A1Cresult), main="Distribution of A1Cresult", 
-        xlab="A1Cresult", ylab="Count", col="green")
-
-barplot(table(df$diabetesMed), main="Distribution of diabetesMed", 
-        xlab="diabetesMed", ylab="Count", col="lightgreen")
-
-barplot(table(df$weight), main="Distribution of readmitted", 
-        xlab="readmitted", ylab="Count", col="purple")
-
-barplot(table(df$diag_1), main="Distribution of diag_1", 
-        xlab="diag_1", ylab="Count", col="orange")
-
-barplot(table(df$diag_2), main="Distribution of diag_2", 
-        xlab="diag_2", ylab="Count", col="lightblue")
-
-barplot(table(df$diag_3), main="Distribution of diag_3", 
-        xlab="diag_3", ylab="Count", col="green")
+barplot(table(df$secondary_diagnosis2), main="Distribution of Secondary Diagnosis 2", 
+         ylab="Count", col="orange", las=2)
 ```
 
 
 ```{r out.width="1200", out.height="1200"}
-par(mfrow = c(3,4))
-
-barplot(table(df$payer_code), main="Distribution of payer_code", 
-        xlab="payer_code", ylab="Count", col="blue")
-
-barplot(table(df$medical_specialty), main="Distribution of medical_specialty", 
-        xlab="medical_specialty", ylab="Count", col="orange")
-
-barplot(table(df$A1Cresult), main="Distribution of A1Cresult", 
-        xlab="A1Cresult", ylab="Count", col="green")
+par(mfrow = c(2,4))
 
 barplot(table(df$metformin), main="Distribution of metformin", 
         xlab="metformin", ylab="Count", col="cyan")
-
-barplot(table(df$glipizide), main="Distribution of glipizide", 
-        xlab="glipizide", ylab="Count", col="blue")
-
-barplot(table(df$glyburide), main="Distribution of glyburide", 
-        xlab="glyburide", ylab="Count", col="orange")
-
-barplot(table(df$pioglitazone), main="Distribution of pioglitazone", 
-        xlab="pioglitazone", ylab="Count", col="green")
-
-barplot(table(df$rosiglitazone), main="Distribution of rosiglitazone", 
-        xlab="rosiglitazone", ylab="Count", col="cyan")
 
 barplot(table(df$insulin), main="Distribution of insulin", 
         xlab="insulin", ylab="Count", col="blue")
@@ -423,6 +470,17 @@ barplot(table(df$change), main="Distribution of change",
 
 barplot(table(df$diabetesMed), main="Distribution of diabetesMed", 
         xlab="diabetesMed", ylab="Count", col="green")
+
+barplot(table(df$admission_type_id), main="Distribution of admission_type_id", 
+         ylab="Count", col="blue",las=2)
+
+barplot(table(df$admission_source_id), main="Distribution of admission_source_id", 
+         ylab="Count", col="lightblue")
+
+barplot(table(df$discharge_disposition_id), main="Distribution of discharge_disposition_id", 
+         ylab="Count", col="lightblue")
+
+
 
 #barplot(table(df$medical_specialty), main="Distribution of Race", xlab="Race", ylab="Count", col="cyan")
 ```
@@ -434,42 +492,26 @@ barplot(table(df$diabetesMed), main="Distribution of diabetesMed",
 ct_race <- table(df$readmitted, df$race)
 ct_gender <- table(df$readmitted, df$gender)
 ct_age <- table(df$readmitted, df$age)
-ct_weight <- table(df$readmitted, df$weight)
 ct_admissionType <- table(df$readmitted, df$admission_type_id)
 ct_dischargeID <- table(df$readmitted, df$discharge_disposition_id)
 ct_admissionSource <- table(df$readmitted, df$admission_source_id)
-ct_payerCode <- table(df$readmitted, df$payer_code)
-ct_medSpec <- table(df$readmitted, df$medical_specialty)
-ct_A1C <- table(df$readmitted, df$A1Cresult)
 ct_metf <- table(df$readmitted, df$metformin)
-ct_glipz <- table(df$readmitted, df$glipizide)
-ct_glyb <- table(df$readmitted, df$glyburide)
-ct_piog <- table(df$readmitted, df$pioglitazone)
-ct_rosig <- table(df$readmitted, df$rosiglitazone)
 ct_insulin <- table(df$readmitted, df$insulin)
 ct_change <- table(df$readmitted, df$change)
 ct_diabMeds <- table(df$readmitted, df$diabetesMed)
 
 # Create contingency tables showing proportions 
-ct_race1 <- prop.table(table(df$readmitted, df$race),2)
-ct_gender1 <- prop.table(table(df$readmitted, df$gender),2)
-ct_age1 <- prop.table(table(df$readmitted, df$age),2)
-ct_weight1 <- prop.table(table(df$readmitted, df$weight),2)
-ct_admissionType1 <- prop.table(table(df$readmitted, df$admission_type_id),2)
-ct_dischargeID1 <- prop.table(table(df$readmitted, df$discharge_disposition_id),2)
-ct_admissionSource1 <- prop.table(table(df$readmitted, df$admission_source_id),2)
-ct_payerCode1 <- prop.table(table(df$readmitted, df$payer_code),2)
-ct_medSpec1 <- prop.table(table(df$readmitted, df$medical_specialty),2)
-ct_A1C1 <- prop.table(table(df$readmitted, df$A1Cresult),2)
-ct_metf1 <- prop.table(table(df$readmitted, df$metformin),2)
-ct_glipz1 <- prop.table(table(df$readmitted, df$glipizide),2)
-ct_glyb1 <- prop.table(table(df$readmitted, df$glyburide),2)
-ct_piog1 <- prop.table(table(df$readmitted, df$pioglitazone),2)
-ct_rosig1 <- prop.table(table(df$readmitted, df$rosiglitazone),2)
-ct_insulin1 <- prop.table(table(df$readmitted, df$insulin),2)
-ct_change1 <- prop.table(table(df$readmitted, df$change),2)
-ct_diabMeds1 <- prop.table(table(df$readmitted, df$diabetesMed),2)
-ct_A1C
+(ct_race1 <- prop.table(table(df$readmitted, df$race),2))
+(ct_gender1 <- prop.table(table(df$readmitted, df$gender),2))
+(ct_age1 <- prop.table(table(df$readmitted, df$age),2))
+(ct_admissionType1 <- prop.table(table(df$readmitted, df$admission_type_id),2))
+(ct_dischargeID1 <- prop.table(table(df$readmitted, df$discharge_disposition_id),2))
+(ct_admissionSource1 <- prop.table(table(df$readmitted, df$admission_source_id),2))
+(ct_metf1 <- prop.table(table(df$readmitted, df$metformin),2))
+(ct_insulin1 <- prop.table(table(df$readmitted, df$insulin),2))
+(ct_change1 <- prop.table(table(df$readmitted, df$change),2))
+(ct_diabMeds1 <- prop.table(table(df$readmitted, df$diabetesMed),2))
+
 ```
 
 ```{r}
@@ -479,140 +521,29 @@ par(mfrow=c(3,2))
 barplot(ct_age1,main="Age Group",xlab="Age Group",ylab="Readmitted",col=c("blue", "orange"))
 barplot(ct_race1,main="Race",xlab="Race",ylab="Readmitted",col=c("blue", "orange"),las=2)
 barplot(ct_gender1,main="Gender",xlab="Gender",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_gender1))
-barplot(ct_payerCode1,main="Payer Code",xlab="Payer Code",ylab="Readmitted",col=c("blue", "orange"),las=2)
-barplot(ct_weight1,main="Weight",xlab="Weight (lbs)",ylab="Readmitted",col=c("blue", "orange"),las=2)
 barplot(ct_dischargeID1,main="Discharge ID",xlab="Discharge ID",ylab="Readmitted",col=c("blue", "orange"))
 ```
 
-* Race: Asians were disproportionately less likely to be readmitted. 
-* Weight: Patients weighing 0-25 or >200 lbs were disproportionately more likely to be readmitted.
-* Discharge ID: Discharge IDs 11, 19, and 20 were disproportionately less likely to be readmitted. Patients with discharge IDs 10,12,15 were disproportionately more likely to be readmitted. 
+* The readmission rate increases with age
+* Gender did not significantly affect readmission rates
+* Asians were proportionately less likely to be readmitted
 
 ```{r}
 # General encounter information
-par(mfrow=c(3,2))
+par(mfrow=c(2,3))
 barplot(ct_admissionSource1,main="Admission Source",xlab="Admission Source",ylab="Readmitted",col=c("blue", "orange"),las=2)
 barplot(ct_admissionType1,main="Admission Type",xlab="Admission Type",ylab="Readmitted",col=c("blue", "orange"))
-barplot(ct_A1C1,main="A1C Result",xlab="A1C Result",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_A1C))
-barplot(ct_change1,main="Medications Change",xlab="Medications Change",ylab="Readmitted",col=c("blue", "orange"))
-barplot(ct_diabMeds1,main="Diabetes Medication",xlab="Diabetes Medication",ylab="Readmitted",col=c("blue", "orange"))
-barplot(ct_medSpec1,main="Medical Specialty",xlab="Medical Specialty",ylab="Readmitted",col=c("blue", "orange"),las=2)
-```
 
-* Admission Source: Admission sources 11, 13, 14, 25 less likely to be readmitted. 
-* Admission Type: Admission type 7 less likely to be readmitted. 
-* Medical Specialty: Patients admitted by certain medical specialities were less likely to be readmitted, such as Speech, Psychiatry, and Neurology. 
-
-```{r}
 # All medications
-par(mfrow=c(3,2))
-barplot(ct_glipz1,main="Glipizide ",xlab="Glipizide",ylab="Readmitted",col=c("blue", "orange"))
-barplot(ct_glyb1,main="Glyburide",xlab="Glyburide",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_glyb1))
 barplot(ct_metf1,main="Metformin",xlab="Metformin",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_metf1))
 barplot(ct_insulin1,main="Insulin",xlab="Insulin",ylab="Readmitted",col=c("blue", "orange"))
-barplot(ct_piog1,main="Pioglitazone",xlab="Pioglitazone",ylab="Readmitted",col=c("blue", "orange"))
-barplot(ct_rosig1,main="Rosiglitazone",xlab="Rosiglitazone",ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_rosig1))
+barplot(ct_change1,main="Medications Change",xlab="Medications Change",ylab="Readmitted",col=c("blue", "orange"))
+barplot(ct_diabMeds1,main="Diabetes Medication",xlab="Diabetes Medication",ylab="Readmitted",col=c("blue", "orange"))
 ```
 
-* Patients who were prescribed a decreased dosage of rosiglitazone were less likely to be readmitted. 
-* Besides this, no other significant differences for the change in/prescription of drugs were observed. 
-
-
-### 2. Data Preprocessing
-
-#### <br><b>2.1 Filter out degenerated predictors</b><br><br>
-```{r message=FALSE, warning=FALSE}
-# Use nearZeroVar function to filter out low variance features
-df_pr <- df[, -degenerateCols]
-dim(df_pr)
-colnames(df_pr)
-```
-
-* 18 degenerated predictors that show near-zero variance have been removed. 32 columns are left in the dataset.
-
-#### <br><b>2.2 Delete other useless features</b><br><br>
-
-Feature removal were performed on the following variables for the following reasons:
-
-* encounter_id and patient_nbr are random and do not contain relevant information
-
-* proportion of readmission is equal across all races
-
-* diag_1, diag_2, and diag_3 each contain over 700 levels and are not conducive to modeling
-
-* number_emergency, number_outpatient, number_inpatient, A1Cresult, glyburide, pioglitazone, pioglitazone, rosiglitazone, glipizide are removed because values show low variance and are extremely skewed.
-
-```{r}
-
-df_pr <- subset(df_pr, select = -c(encounter_id, patient_nbr, diag_1, diag_2,diag_3, race, number_emergency, number_outpatient, number_inpatient, A1Cresult, glyburide, pioglitazone, pioglitazone, rosiglitazone, glipizide))
-
-dim(df_pr)
-```
-
-* After this step, 18 columns are left in the data frame.
-
-#### <br><b>2.3 Handle missing values</b><br><br>
-
-* weight, medical_specialty, and payer_code contain large portion of missing values
-
-```{r}
-# Check null values
-#Show null counts
-null_counts <- sort(colSums(is.na(df_pr)), decreasing=TRUE)
-head(null_counts, 5)
-
-#Show proportion of null counts
-head(prop.table(null_counts), 5)
-
-df_pr <- subset(df_pr, select = -c(weight, medical_specialty, payer_code))
-
-dim(df_pr)
-sum(is.na(df_pr))
-colnames(df_pr)
-
-```
-
-* After this step, 15 columns are left in the data frame.
-
-#### <br><b>2.4 Remove outliers</b><br><br>
-
-```{r}
-# Remove outlier from column 'num_lab_procedures'
-quartiles <- quantile(df_pr$num_lab_procedures, probs=c(.25, .75), na.rm = FALSE)
-IQR <- IQR(df_pr$num_lab_procedures)
-Lower <- quartiles[1] - 1.5*IQR
-Upper <- quartiles[2] + 1.5*IQR
-
-count_before <-dim(df_pr)[1]
-df_pr <- subset(df_pr, df_pr$num_lab_procedures > Lower & df_pr$num_lab_procedures < Upper)
-count_after <-dim(df_pr)[1]
-cat(count_before-count_after, " outliers in num_lab_procedures have been removed. \n")
-
-
-# Remove outliers from column 'number_diagnoses'
-quartiles <- quantile(df_pr$number_diagnoses, probs=c(.25, .75), na.rm = FALSE)
-IQR <- IQR(df_pr$number_diagnoses)
-Lower <- quartiles[1] - 1.5*IQR
-Upper <- quartiles[2] + 1.5*IQR
-
-count_before <-dim(df_pr)[1]
-df_pr <- subset(df_pr, df_pr$number_diagnoses > Lower & df_pr$number_diagnoses < Upper)
-count_after <-dim(df_pr)[1]
-cat(count_before-count_after, " outliers in number_diagnoses have been removed. \n")
-
-
-# Remove outliers from column 'num_medications'
-quartiles <- quantile(df_pr$num_medications, probs=c(.25, .75), na.rm = FALSE)
-IQR <- IQR(df_pr$num_medications)
-Lower <- quartiles[1] - 2*IQR
-Upper <- quartiles[2] + 2*IQR
-
-count_before <-dim(df_pr)[1]
-df_pr <- subset(df_pr, df_pr$num_medications > Lower & df_pr$num_medications < Upper)
-count_after <-dim(df_pr)[1]
-cat(count_before-count_after, " outliers in num_medications have been removed. \n")
-
-```
+* Admission sources 10, 11, 13, 14, 22, and 25 were less likely to be readmitted (0% readmission rates)
+* Admission type 7 proportionately less likely to be readmitted
+* No significant differences for the change in/prescription of drugs were observed. 
 
 #### <br><b>2.5 Partition data into training and test datasets using a 70% ratio</b><br><br>
 
@@ -620,8 +551,8 @@ cat(count_before-count_after, " outliers in num_medications have been removed. \
 
 ```{r}
 #Separate X and Y using readmitted as predicted variable
-dfX <- subset(df_pr, select = -c(readmitted))
-dfY <- subset(df_pr, select = c(readmitted))
+dfX <- subset(df, select = -c(readmitted))
+dfY <- subset(df, select = c(readmitted))
 
 set.seed(100)
 # Partition the dataset
@@ -638,7 +569,15 @@ dim(testX)
 
 ```
 
-* After the partition, there are 69858 instances in the training set and 29939 instances in the test set.
+After the partition, there are 47939 instances in the training set and 20544 instances in the test set.
+
+Show class distributions for the training set
+```{r}
+(trainResponse<-table(train$readmitted))
+prop.table(trainResponse)
+```
+
+The class distribution in the training set is is 40.94% YES (19627 instances) and 59.06% NO (28312 instances)
 
 
 #### <br><b>2.6 Trandform and standardize features: center and scale</b><br><br>
@@ -778,7 +717,7 @@ ctrl <- trainControl(method = "cv", summaryFunction = twoClassSummary,
 
 # Logistic Regression 
 set.seed(123)
-lrFit <- train(x = trainX, y = trainY,
+lrFit <- train(x = trainX, y = trainY$readmitted,
                method = "glm", metric = "ROC", trControl = ctrl)
 
 # Calculate training/resampling performance metrics
@@ -953,7 +892,7 @@ gbmGrid <- expand.grid(interaction.depth = c(3),
 
 set.seed(123)
 
-gbmFit <- train(x = trainX_noDummy, y = trainY,
+gbmFit <- train(x = trainX_noDummy, y = trainY$readmitted,
                 method = "gbm", tuneGrid = gbmGrid,
                 verbose = FALSE, metric = "ROC", trControl = ctrl)
 
