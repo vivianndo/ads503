@@ -717,7 +717,7 @@ ctrl <- trainControl(method = "cv", summaryFunction = twoClassSummary,
 
 # Logistic Regression 
 set.seed(123)
-lrFit <- train(x = trainX, y = trainY$readmitted,
+lrFit <- train(x = trainX, y = trainY,
                method = "glm", metric = "ROC", trControl = ctrl)
 
 # Calculate training/resampling performance metrics
@@ -892,7 +892,7 @@ gbmGrid <- expand.grid(interaction.depth = c(3),
 
 set.seed(123)
 
-gbmFit <- train(x = trainX_noDummy, y = trainY$readmitted,
+gbmFit <- train(x = trainX_noDummy, y = trainY,
                 method = "gbm", tuneGrid = gbmGrid,
                 verbose = FALSE, metric = "ROC", trControl = ctrl)
 
