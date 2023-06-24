@@ -14,7 +14,7 @@ Reference: https://www.hindawi.com/journals/bmri/2014/781670/
 df <- read.csv(file = "diabetic_data.csv")
 dim(df)
 str(df)
-head(df)
+colnames(df)
 ```
 * There are 101766 data records with 50 features.
 
