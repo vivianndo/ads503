@@ -140,11 +140,11 @@ df <- df %>%
     between(as.numeric(diag_1), 320, 459) ~ "Circulatory",
     between(as.numeric(diag_1), 460, 519) ~ "Respiratory",
     between(as.numeric(diag_1), 520, 579) ~ "Digestive",
-    between(as.numeric(diag_1), 580, 629) ~ "Genitourinary System",
+    between(as.numeric(diag_1), 580, 629) ~ "Genitourinary",
     #between(as.numeric(diag_1), 680, 709) ~ "Skin/Subcutaneous Tissue",
     between(as.numeric(diag_1), 710, 739) ~ "Musculoskeletal",
     between(as.numeric(diag_1), 760, 779) ~ "Perinatal",
-    between(as.numeric(diag_1), 800, 999) ~ "Injury and Poisoning",
+    between(as.numeric(diag_1), 800, 999) ~ "Injury/Poisoning",
     TRUE ~ "Other"
   ))
 
@@ -157,11 +157,11 @@ df <- df %>%
     between(as.numeric(diag_2), 320, 459) ~ "Circulatory",
     between(as.numeric(diag_2), 460, 519) ~ "Respiratory",
     between(as.numeric(diag_2), 520, 579) ~ "Digestive",
-    between(as.numeric(diag_2), 580, 629) ~ "Genitourinary System",
+    between(as.numeric(diag_2), 580, 629) ~ "Genitourinary",
     #between(as.numeric(diag_2), 680, 709) ~ "Skin/Subcutaneous Tissue",
     between(as.numeric(diag_2), 710, 739) ~ "Musculoskeletal",
     between(as.numeric(diag_2), 760, 779) ~ "Perinatal",
-    between(as.numeric(diag_2), 800, 999) ~ "Injury and Poisoning",
+    between(as.numeric(diag_2), 800, 999) ~ "Injury/Poisoning",
     TRUE ~ "Other"
   ))
 
@@ -174,11 +174,11 @@ df <- df %>%
     between(as.numeric(diag_3), 320, 459) ~ "Circulatory",
     between(as.numeric(diag_3), 460, 519) ~ "Respiratory",
     between(as.numeric(diag_3), 520, 579) ~ "Digestive",
-    between(as.numeric(diag_3), 580, 629) ~ "Genitourinary System",
+    between(as.numeric(diag_3), 580, 629) ~ "Genitourinary",
     #between(as.numeric(diag_3), 680, 709) ~ "Skin/Subcutaneous Tissue",
     between(as.numeric(diag_3), 710, 739) ~ "Musculoskeletal",
     between(as.numeric(diag_3), 760, 779) ~ "Perinatal",
-    between(as.numeric(diag_3), 800, 999) ~ "Injury and Poisoning",
+    between(as.numeric(diag_3), 800, 999) ~ "Injury/Poisoning",
     TRUE ~ "Other"
   ))
 df$primary_diagnosis <- as.factor(df$primary_diagnosis)
@@ -436,7 +436,7 @@ barplot(ct_admissionSource1,main="Admission Source",
 barplot(ct_admissionType1,main="Admission Type", ylab="Readmitted",col=c("blue", "orange"))
 
 
-barplot(ct_A1C,main="A1C Result", ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_A1C))
+barplot(ct_A1C1,main="A1C Result", ylab="Readmitted",col=c("blue", "orange"),legend=rownames(ct_A1C))
 barplot(ct_change1,main="Medications Change", ylab="Readmitted",col=c("blue", "orange"))
 barplot(ct_diabMeds1,main="Diabetes Medication",ylab="Readmitted",col=c("blue", "orange"))
 
